@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🎒 周周的新加坡大冒险</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "PingFang SC", "Hiragino Sans GB", sans-serif;
+    background: linear-gradient(160deg, #a8e6ff 0%, #ffe8b3 60%, #ffd3e8 100%);
+    min-height: 100vh; padding: 24px 16px 60px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  .hero {
+    background: #fff; border-radius: 28px; padding: 28px 24px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.12); text-align: center; margin-bottom: 20px;
+  }
+  .hero h1 { font-size: 32px; color: #ff6b9d; letter-spacing: 2px; }
+  .hero p { font-size: 17px; color: #666; margin-top: 8px; line-height: 1.6; }
+  .hero .family { font-size: 22px; margin-top: 10px; }
+  .hero img { width: 100%; border-radius: 18px; margin-top: 16px; display: block; }
+  .day {
+    background: #fff; border-radius: 24px; padding: 22px 20px; margin-bottom: 16px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.08); border-left: 10px solid;
+  }
+  .day .head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .day .date { font-size: 14px; color: #999; font-weight: 700; }
+  .day h2 { font-size: 22px; }
+  .day .icon { font-size: 34px; }
+  .day img { width: 100%; border-radius: 16px; margin: 8px 0 12px; display: block; }
+  .day ul { list-style: none; }
+  .day li { font-size: 16px; color: #444; padding: 6px 0 6px 26px; position: relative; line-height: 1.55; }
+  .day li::before { content: "⭐"; position: absolute; left: 0; top: 6px; font-size: 14px; }
+  .day li.cool::before { content: "🎢"; }
+  .day li.yum::before { content: "🍗"; }
+  .day li.wow::before { content: "🎆"; }
+  .d1 { border-color: #ff6b9d; } .d2 { border-color: #ffa94d; }
+  .d3 { border-color: #51cf66; } .d4 { border-color: #4dabf7; }
+  .d5 { border-color: #f76707; } .d6 { border-color: #845ef7; }
+  .check {
+    background: #fff; border-radius: 24px; padding: 22px 20px; margin-top: 20px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.08);
+  }
+  .check h2 { font-size: 20px; color: #ff6b9d; margin-bottom: 12px; }
+  .check label { display: block; font-size: 17px; padding: 8px 0; cursor: pointer; }
+  .check input { width: 20px; height: 20px; margin-right: 10px; accent-color: #ff6b9d; vertical-align: -3px; }
+  .tip { font-size: 15px; color: #888; text-align: center; margin-top: 18px; line-height: 1.7; }
+  .big { font-size: 26px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="big">🇸🇬✈️</div>
+    <h1>周周的新加坡大冒险</h1>
+    <p>8月6日 ~ 8月11日<br>和爸爸、妈妈、哥哥一起去新加坡！</p>
+    <div class="family">👨👩👦👦 全家出发！</div>
+    <img src="img/plane.png" alt="飞机飞向新加坡">
+  </div>
+
+  <div class="day d1">
+    <div class="head"><span class="icon">✈️</span><div><h2>第1天 · 出发日</h2><div class="date">8月6日 星期四</div></div></div>
+    <img src="img/plane.png" alt="出发">
+    <ul>
+      <li>晚上坐上大飞机，飞到新加坡</li>
+      <li>住在乌节路大酒店，楼下全是好吃的好玩的</li>
+      <li class="cool">到得早的话，能看机场里的「大瀑布」！</li>
+    </ul>
+  </div>
+
+  <div class="day d2">
+    <div class="head"><span class="icon">🎢</span><div><h2>第2天 · 过山车日</h2><div class="date">8月7日 星期五</div></div></div>
+    <img src="img/rollercoaster.png" alt="环球影城过山车">
+    <ul>
+      <li>环球影城：变形金刚、史瑞克、马达加斯加，还有超刺激的过山车</li>
+      <li>下午玩「小滑车」——坐着小车从山坡上冲下来，超好玩！</li>
+      <li class="wow">再去海洋馆看大鲨鱼，或者去沙滩踩水</li>
+    </ul>
+  </div>
+
+  <div class="day d3">
+    <div class="head"><span class="icon">🦁</span><div><h2>第3天 · 大鱼喷水日</h2><div class="date">8月8日 星期六</div></div></div>
+    <img src="img/merlion.png" alt="鱼尾狮喷水">
+    <img src="img/supertree.png" alt="超级树灯光秀">
+    <ul>
+      <li>去看新加坡最出名的「鱼尾狮」——鱼的身体，狮子的头，嘴巴还会喷水！</li>
+      <li class="yum">中午吃海南鸡饭，香喷喷的</li>
+      <li>下午逛彩色的小巷子，拍照超好看</li>
+      <li class="wow">晚上看「超级树」发光表演，像外星森林！</li>
+    </ul>
+  </div>
+
+  <div class="day d4">
+    <div class="head"><span class="icon">🏫</span><div><h2>第4天 · 小笼包楼日</h2><div class="date">8月9日 星期天（国庆日）</div></div></div>
+    <img src="img/hive.png" alt="南洋理工小笼包楼">
+    <ul>
+      <li>去南洋理工大学，看像「小笼包」一样的大楼！</li>
+      <li>还有长满绿草的屋顶，可以走上去</li>
+      <li class="wow">晚上是最重要的时刻：新加坡国庆日，看超大的烟花表演！🎆🎆🎆</li>
+    </ul>
+  </div>
+
+  <div class="day d5">
+    <div class="head"><span class="icon">🧱</span><div><h2>第5天 · 乐高王国日</h2><div class="date">8月10日 星期一</div></div></div>
+    <img src="img/legoland.png" alt="乐高乐园">
+    <ul>
+      <li>出发去隔壁的马来西亚！</li>
+      <li>乐高乐园：用乐高搭出来的城市、过山车、海盗船</li>
+      <li class="cool">还有水上乐园，记得带泳衣！</li>
+    </ul>
+  </div>
+
+  <div class="day d6">
+    <div class="head"><span class="icon">🏠</span><div><h2>第6天 · 回家日</h2><div class="date">8月11日 星期二</div></div></div>
+    <img src="img/plane.png" alt="回家">
+    <ul>
+      <li>早上坐上飞机回家</li>
+      <li>行李箱里装满了战利品和满满回忆！</li>
+    </ul>
+  </div>
+
+  <div class="check">
+    <h2>📋 我最期待的事（打勾勾）</h2>
+    <label><input type="checkbox"> 环球影城的过山车 🎢</label>
+    <label><input type="checkbox"> 和鱼尾狮一起喷水拍照 🦁</label>
+    <label><input type="checkbox"> 看「小笼包」大楼 🏫</label>
+    <label><input type="checkbox"> 晚上看国庆大烟花 🎆</label>
+    <label><input type="checkbox"> 乐高乐园玩一整天 🧱</label>
+    <label><input type="checkbox"> 吃冰淇淋和海南鸡饭 🍦</label>
+  </div>
+
+  <div class="tip">
+    ✏️ 出发前记得：带口罩、拖鞋、一本书、还有你的好奇心！<br>
+    🎒 祝你玩得开心，周周！
+  </div>
+
+</div>
+</body>
+</html>

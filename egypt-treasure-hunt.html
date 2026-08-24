@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>时楠的埃及寻宝记</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #2b1d12;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 10px;
+    user-select: none; -webkit-user-select: none;
+  }
+  h1 { color: #ffd54a; font-size: 30px; margin: 8px 0 4px; text-shadow: 2px 2px 0 #7a4a12; }
+  #hud {
+    width: 675px; max-width: 96vw;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 22px; color: #ffe9b8; margin-bottom: 6px; font-weight: bold;
+  }
+  #stage { font-size: 24px; color: #ffd54a; }
+  #lives { letter-spacing: 2px; }
+  #beetles { color: #ffe9b8; }
+  #wrap { position: relative; }
+  canvas {
+    display: block; width: 675px; max-width: 96vw; height: auto;
+    border: 4px solid #7a4a12; border-radius: 12px; background: #e8c87a;
+  }
+  #msg {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    background: rgba(20, 10, 0, 0.72); color: #fff; font-size: 26px;
+    line-height: 1.6; border-radius: 12px; padding: 20px;
+  }
+  #msg .title { font-size: 38px; color: #ffd54a; margin-bottom: 10px; }
+  #msg .hint { color: #ffe9b8; font-size: 20px; margin-top: 14px; }
+  #tip { color: #c9a86a; font-size: 15px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h1>🏺 时楠的埃及寻宝记 🏺</h1>
+<div id="hud">
+  <span id="stage">第 1 关</span>
+  <span id="lives">❤️❤️❤️</span>
+  <span id="beetles">🪲 0/4</span>
+</div>
+<div id="wrap">
+  <canvas id="game" width="675" height="495"></canvas>
+  <div id="msg">
+    <div class="title">🏺 时楠的埃及寻宝记 🏺</div>
+    <div>你是小探险家，去金字塔里寻宝！<br>
+         收集全部圣甲虫 🪲，躲开木乃伊 🧟</div>
+    <div class="hint">点一下这里 或 按 <b>空格</b> 开始！<br>方向键 / WASD 走路 · 按住鼠标也能走</div>
+  </div>
+</div>
+<div id="tip">集齐圣甲虫，出口的大门就会打开 ✨</div>
+
+<script>
+"use strict";
+/* ===== 画布与基础 ===== */
+const cv = document.getElementById("game");
+const ctx = cv.getContext("2d");
+const CW = cv.width, CH = cv.height;
+const COLS = 15, ROWS = 11;      // 迷宫格子数（奇数）
+const CELL = 45;                 // 每格像素
+const msgBox = document.getElementById("msg");
+const hudStage = document.getElementById("stage");
+const hudLives = document.getElementById("lives");
+const hudBeetles = document.getElementById("beetles");
+
+/* ===== 音效（Web Audio 合成，不需要音乐文件） ===== */
+let actx = null;
+function beep(freq, dur, type, vol) {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type || "square"; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol || 0.12, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(); o.stop(actx.currentTime + dur);
+  } catch (e) {}
+}
+const sndPick =   () => { beep(880, 0.12, "square"); beep(1320, 0.15, "square"); };
+const sndHurt =   () => { beep(180, 0.3, "sawtooth", 0.15); };
+const sndOpen =   () => { beep(523, 0.12, "triangle"); beep(659, 0.12, "triangle"); beep(784, 0.2, "triangle"); };
+const sndWin =    () => { [523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>beep(f,0.2,"triangle"),i*120)); };
+const sndLose =   () => { [400,300,200,120].forEach((f,i)=>setTimeout(()=>beep(f,0.25,"sawtooth",0.14),i*160)); };
+
+/* ===== 迷宫生成（完美迷宫 + 拆墙，保证全连通） ===== */
+function genMaze() {
+  // 全部是墙
+  const g = [];
+  for (let y = 0; y < ROWS; y++) { g.push([]); for (let x = 0; x < COLS; x++) g[y].push(1); }
+  // DFS 挖出完美迷宫
+  const stack = [[1, 1]];
+  g[1][1] = 0;
+  const dirs = [[0,2],[0,-2],[2,0],[-2,0]];
+  while (stack.length) {
+    const [cx, cy] = stack[stack.length - 1];
+    const nb = [];
+    for (const [dx, dy] of dirs) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx > 0 && nx < COLS - 1 && ny > 0 && ny < ROWS - 1 && g[ny][nx] === 1) nb.push([nx, ny, dx / 2, dy / 2]);
+    }
+    if (!nb.length) { stack.pop(); continue; }
+    const [nx, ny, wx, wy] = nb[Math.floor(Math.random() * nb.length)];
+    g[ny][nx] = 0;
+    g[cy + wy][cx + wx] = 0;   // 打通中间的墙
+    stack.push([nx, ny]);
+  }
+  // 随机拆一些墙，让迷宫更开阔
+  for (let i = 0; i < 12; i++) {
+    const x = 1 + Math.floor(Math.random() * (COLS - 2));
+    const y = 1 + Math.floor(Math.random() * (ROWS - 2));
+    if (g[y][x] === 1) {
+      const horiz = Math.random() < 0.5;
+      if (horiz) { if (g[y][x-1] === 0 && g[y][x+1] === 0) g[y][x] = 0; }
+      else       { if (g[y-1][x] === 0 && g[y+1][x] === 0) g[y][x] = 0; }
+    }
+  }
+  return g;
+}
+function freeCells(g) {
+  const out = [];
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (g[y][x] === 0) out.push([x, y]);
+  return out;
+}
+function dist(a, b) { return Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]); }
+
+/* ===== 游戏状态 ===== */
+let state = "start";       // start | playing | gameover | win
+let level = 1;
+let lives = 3;
+let grid, player, beetles, exitCell, enemies, collected;
+let blink = 0;             // 受伤无敌闪烁时间
+let exitOpen = false;
+let tGlobal = 0;
+let lastTime = 0;
+let mouseDown = false, mousePos = { x: 0, y: 0 };
+
+const MAX_LEVEL = 4;
+function setupLevel(lv) {
+  grid = genMaze();
+  const cells = freeCells(grid);
+  // 玩家
+  player = { x: 1.5, y: 1.5, gx: 1, gy: 1 };
+  player = pickPlayer(cells, player);
+  // 出口：离玩家远一点
+  let ec = cells[Math.floor(Math.random() * cells.length)];
+  let tries = 0;
+  while (dist(ec, [player.gx, player.gy]) < 9 && tries++ < 60) ec = cells[Math.floor(Math.random() * cells.length)];
+  exitCell = ec;
+  // 圣甲虫
+  const beetleCount = 3 + lv;                 // 4,5,6,7
+  beetles = [];
+  let pool = cells.filter(c => dist(c, [player.gx, player.gy]) > 3 && !(c[0]===ec[0]&&c[1]===ec[1]));
+  for (let i = 0; i < beetleCount && pool.length; i++) {
+    const k = Math.floor(Math.random() * pool.length);
+    beetles.push(pool.splice(k, 1)[0]);
+  }
+  collected = 0;
+  exitOpen = false;
+  // 木乃伊
+  enemies = [];
+  const enemyCount = lv === 1 ? 1 : (lv === 2 ? 2 : 3);
+  let epool = cells.filter(c => dist(c, [player.gx, player.gy]) > 5 && !(c[0]===ec[0]&&c[1]===ec[1]) && !beetles.some(b=>b[0]===c[0]&&b[1]===c[1]));
+  for (let i = 0; i < enemyCount && epool.length; i++) {
+    const k = Math.floor(Math.random() * epool.length);
+    const c = epool.splice(k, 1)[0];
+    enemies.push({ x: c[0] + 0.5, y: c[1] + 0.5, gx: c[0], gy: c[1], dir: [0, 0], speed: 0.6 + lv * 0.12, think: 0, last: [-1, -1] });
+  }
+  updateHUD();
+}
+function pickPlayer(cells, p) {
+  const c = cells[Math.floor(Math.random() * cells.length)];
+  p.gx = c[0]; p.gy = c[1]; p.x = c[0] + 0.5; p.y = c[1] + 0.5;
+  return p;
+}
+function updateHUD() {
+  hudStage.textContent = "第 " + level + " 关";
+  let h = "";
+  for (let i = 0; i < 3; i++) h += i < lives ? "❤️" : "🖤";
+  hudLives.textContent = h;
+  hudBeetles.textContent = "🪲 " + collected + "/" + beetles.length;
+}
+function showMsg(html) { msgBox.style.display = "flex"; msgBox.innerHTML = html; }
+function hideMsg() { msgBox.style.display = "none"; }
+
+/* ===== 玩家移动（按键 + 鼠标） ===== */
+const keys = {};
+document.addEventListener("keydown", e => {
+  if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault();
+  keys[e.key.toLowerCase()] = true;
+  if ((e.key === " " || e.key === "Enter") && state === "start") { startGame(); }
+  else if ((e.key === " " || e.key === "Enter") && (state === "gameover" || state === "win")) { startGame(); }
+});
+document.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+cv.addEventListener("mousedown", e => { mouseDown = true; updateMouse(e); });
+window.addEventListener("mouseup", () => { mouseDown = false; });
+window.addEventListener("mousemove", e => updateMouse(e));
+function updateMouse(e) {
+  const r = cv.getBoundingClientRect();
+  mousePos.x = (e.clientX - r.left) * (CW / r.width);
+  mousePos.y = (e.clientY - r.top) * (CH / r.height);
+}
+function startGame() {
+  for (const k in keys) keys[k] = false;   // 清掉遗留按键
+  level = 1; lives = 3; blink = 0;
+  setupLevel(1);
+  state = "playing";
+  hideMsg();
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+/* ===== 开始（键盘 / 鼠标点击都行） ===== */
+function tryStart() {
+  if (state === "start" || state === "gameover" || state === "win") startGame();
+}
+msgBox.addEventListener("click", () => { tryStart(); window.focus(); });
+cv.addEventListener("pointerdown", () => window.focus());  // 点击画面后键盘焦点归游戏
+
+/* ===== 碰撞与移动 ===== */
+function movePlayer(dx, dy) {
+  const r = 0.30;   // 碰撞半径（格子单位）
+  let nx = player.x, ny = player.y;
+  // 分轴碰撞，防止卡角：先试 x 轴，再试 y 轴
+  const px = player.x + dx;
+  if (!solidAt(px - r, player.y - r) && !solidAt(px + r, player.y - r) &&
+      !solidAt(px - r, player.y + r) && !solidAt(px + r, player.y + r)) nx = px;
+  const py = player.y + dy;
+  if (!solidAt(player.x - r, py - r) && !solidAt(player.x + r, py - r) &&
+      !solidAt(player.x - r, py + r) && !solidAt(player.x + r, py + r)) ny = py;
+  player.x = nx; player.y = ny;
+  player.gx = Math.round(player.x - 0.5);
+  player.gy = Math.round(player.y - 0.5);
+}
+function solidAt(x, y) {
+  const gx = Math.floor(x), gy = Math.floor(y);
+  if (gx < 0 || gx >= COLS || gy < 0 || gy >= ROWS) return true;
+  return grid[gy][gx] === 1;
+}
+
+/* ===== 木乃伊 AI：朝着玩家走，撞墙换方向 ===== */
+function stepEnemy(e, dt) {
+  e.think -= dt;
+  const cx = Math.round(e.x - 0.5), cy = Math.round(e.y - 0.5);
+  const atCenter = Math.abs(e.x - (cx + 0.5)) < 0.05 && Math.abs(e.y - (cy + 0.5)) < 0.05;
+  if (e.think <= 0 || (atCenter && (cx !== e.gx || cy !== e.gy))) {
+    e.gx = cx; e.gy = cy;
+    // 四个相邻方向里选最靠近玩家的
+    const opts = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy]) => {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) return false;
+      if (grid[ny][nx] === 1) return false;
+      if (nx === e.last[0] && ny === e.last[1]) return false; // 不回头
+      return true;
+    });
+    let best = null, bd = 1e9;
+    for (const [dx, dy] of opts) {
+      const d = (cx+dx - player.gx) ** 2 + (cy+dy - player.gy) ** 2;
+      if (d < bd) { bd = d; best = [dx, dy]; }
+    }
+    if (!best) { // 死胡同：回头
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nx = cx + dx, ny = cy + dy;
+        if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && grid[ny][nx] === 0) { best = [dx, dy]; break; }
+      }
+    }
+    e.dir = best || [0, 0];
+    e.last = [cx - (e.dir[0] || 0), cy - (e.dir[1] || 0)];
+    e.think = 0.45;
+  }
+  if (e.dir[0] || e.dir[1]) {
+    e.x += e.dir[0] * e.speed * dt;
+    e.y += e.dir[1] * e.speed * dt;
+  }
+}
+
+/* ===== 绘制 ===== */
+function drawMaze() {
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const px = x * CELL, py = y * CELL;
+    if (grid[y][x] === 1) {
+      ctx.fillStyle = "#c9a15e"; ctx.fillRect(px, py, CELL, CELL);
+      ctx.strokeStyle = "#8a6a33"; ctx.lineWidth = 2;
+      ctx.strokeRect(px + 1, py + 1, CELL - 2, CELL - 2);
+      // 砖缝
+      ctx.strokeStyle = "#a5824a";
+      ctx.beginPath(); ctx.moveTo(px, py + CELL/2); ctx.lineTo(px + CELL, py + CELL/2);
+      ctx.moveTo(px + CELL/2, py); ctx.lineTo(px + CELL/2, py + CELL);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = (x + y) % 2 === 0 ? "#f0d291" : "#e8c87a";
+      ctx.fillRect(px, py, CELL, CELL);
+    }
+  }
+}
+function drawBeetles() {
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (const [bx, by] of beetles) {
+    const cx = bx * CELL + CELL / 2, cy = by * CELL + CELL / 2;
+    const bob = Math.sin(tGlobal * 3 + bx * 1.7) * 3;
+    // 金色光晕
+    ctx.fillStyle = "rgba(255, 210, 60, 0.35)";
+    ctx.beginPath(); ctx.arc(cx, cy + bob, 14, 0, Math.PI * 2); ctx.fill();
+    ctx.font = "26px serif";
+    ctx.fillText("🪲", cx, cy + bob);
+  }
+}
+function drawExit() {
+  const cx = exitCell[0] * CELL + CELL / 2, cy = exitCell[1] * CELL + CELL / 2;
+  if (exitOpen) {
+    const glow = 0.5 + 0.5 * Math.sin(tGlobal * 6);
+    ctx.fillStyle = "rgba(255, 220, 80, " + (0.25 + glow * 0.3) + ")";
+    ctx.beginPath(); ctx.arc(cx, cy, 20, 0, Math.PI * 2); ctx.fill();
+    ctx.font = "30px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("🚪", cx, cy);
+  } else {
+    ctx.fillStyle = "rgba(120, 120, 120, 0.5)";
+    ctx.font = "26px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("🔒", cx, cy);
+  }
+}
+function drawPlayer() {
+  if (blink > 0 && Math.floor(tGlobal * 12) % 2 === 0) return; // 受伤闪烁
+  const cx = player.x * CELL, cy = player.y * CELL;
+  const walk = Math.sin(tGlobal * 10) * 2 * (moving() ? 1 : 0);
+  // 身体
+  ctx.fillStyle = "#e8842c"; ctx.fillRect(cx - 9, cy - 2 + walk, 18, 16);
+  // 背包
+  ctx.fillStyle = "#8a5a2a"; ctx.fillRect(cx - 12, cy - 2 + walk, 4, 12);
+  // 头
+  ctx.fillStyle = "#ffd9a0"; ctx.beginPath(); ctx.arc(cx, cy - 8 + walk, 9, 0, Math.PI * 2); ctx.fill();
+  // 探险帽
+  ctx.fillStyle = "#b5812f"; ctx.beginPath(); ctx.arc(cx, cy - 11 + walk, 9, Math.PI, 0); ctx.fill();
+  ctx.fillRect(cx - 12, cy - 11 + walk, 24, 3);
+  // 眼睛
+  ctx.fillStyle = "#333";
+  ctx.beginPath(); ctx.arc(cx - 3, cy - 7 + walk, 1.6, 0, Math.PI * 2); ctx.arc(cx + 3, cy - 7 + walk, 1.6, 0, Math.PI * 2); ctx.fill();
+}
+function moving() { return keys["arrowup"] || keys["arrowdown"] || keys["arrowleft"] || keys["arrowright"] || keys["w"] || keys["a"] || keys["s"] || keys["d"] || mouseDown; }
+function drawEnemies() {
+  for (const e of enemies) {
+    const cx = e.x * CELL, cy = e.y * CELL;
+    const sway = Math.sin(tGlobal * 8 + e.x) * 2;
+    // 身体（绷带）
+    ctx.fillStyle = "#f2ead8"; ctx.fillRect(cx - 8, cy - 1 + sway, 16, 15);
+    ctx.strokeStyle = "#b8ad94"; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath(); ctx.moveTo(cx - 8, cy + 2 + i * 4 + sway); ctx.lineTo(cx + 8, cy + 2 + i * 4 + sway); ctx.stroke();
+    }
+    // 头
+    ctx.fillStyle = "#f2ead8"; ctx.beginPath(); ctx.arc(cx, cy - 9 + sway, 8, 0, Math.PI * 2); ctx.fill();
+    // 红眼睛
+    ctx.fillStyle = "#d92b2b";
+    ctx.beginPath(); ctx.arc(cx - 3, cy - 9 + sway, 2, 0, Math.PI * 2); ctx.arc(cx + 3, cy - 9 + sway, 2, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+/* ===== 主循环 ===== */
+function loop(t) {
+  if (state !== "playing") return;
+  let dt = (t - lastTime) / 1000;
+  lastTime = t;
+  if (dt > 0.1) dt = 0.1;
+  tGlobal += dt;
+  blink = Math.max(0, blink - dt);
+
+  // 玩家移动
+  let dx = 0, dy = 0;
+  if (keys["arrowup"] || keys["w"]) dy -= 1;
+  if (keys["arrowdown"] || keys["s"]) dy += 1;
+  if (keys["arrowleft"] || keys["a"]) dx -= 1;
+  if (keys["arrowright"] || keys["d"]) dx += 1;
+  if (mouseDown && !dx && !dy) {
+    const mx = mousePos.x / CELL, my = mousePos.y / CELL;
+    const ddx = mx - player.x, ddy = my - player.y;
+    const len = Math.hypot(ddx, ddy);
+    if (len > 0.3) { dx = ddx / len; dy = ddy / len; }
+  }
+  if (dx || dy) {
+    const spd = 4.2;
+    const len = Math.hypot(dx, dy);
+    movePlayer(dx / len * spd * dt, dy / len * spd * dt);
+  }
+
+  // 收集圣甲虫
+  const pgx = Math.round(player.x - 0.5), pgy = Math.round(player.y - 0.5);
+  for (let i = beetles.length - 1; i >= 0; i--) {
+    if (beetles[i][0] === pgx && beetles[i][1] === pgy) {
+      beetles.splice(i, 1);
+      collected++;
+      sndPick();
+      updateHUD();
+      if (beetles.length === 0) { exitOpen = true; sndOpen(); }
+    }
+  }
+  // 出口过关
+  if (exitOpen && pgx === exitCell[0] && pgy === exitCell[1]) {
+    if (level >= MAX_LEVEL) {
+      state = "win"; sndWin();
+      showMsg('<div class="title">🏆 你找到了所有宝藏！🏆</div><div>你是个真正的寻宝小英雄！<br>圣甲虫、七支刀的秘密都被你发现啦！</div><div class="hint">按 <b>空格</b> 再玩一次</div>');
+    } else {
+      level++; sndWin();
+      setupLevel(level);
+    }
+  }
+
+  // 木乃伊移动
+  for (const e of enemies) stepEnemy(e, dt);
+
+  // 木乃伊碰到玩家
+  if (blink <= 0) {
+    for (const e of enemies) {
+      if (Math.hypot(e.x - player.x, e.y - player.y) < 0.72) {
+        lives--;
+        blink = 1.5;
+        sndHurt();
+        updateHUD();
+        if (lives <= 0) {
+          state = "gameover"; sndLose();
+          showMsg('<div class="title">💀 被木乃伊抓住啦！</div><div>别灰心，再试一次！<br>记得绕开红眼睛的木乃伊哦</div><div class="hint">按 <b>空格</b> 再来一次</div>');
+        }
+        break;
+      }
+    }
+  }
+
+  // 绘制
+  drawMaze();
+  drawExit();
+  drawBeetles();
+  drawEnemies();
+  drawPlayer();
+
+  requestAnimationFrame(loop);
+}
+
+/* ===== 开始 ===== */
+setupLevel(1);
+// 先画一帧迷宫做开始画面的背景
+ctx.fillStyle = "#e8c87a"; ctx.fillRect(0, 0, CW, CH);
+drawMaze(); drawExit(); drawBeetles(); drawEnemies(); drawPlayer();
+</script>
+</body>
+</html>
