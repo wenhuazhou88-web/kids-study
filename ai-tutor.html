@@ -327,16 +327,30 @@ const ENG_WORDS = [
 ];
 function genEng() {
   const dir = Math.random()<0.5 ? 0 : 1; // 0=英→中 1=中→英
-  const [en, cn] = ENG_WORDS[Math.floor(Math.random()*ENG_WORDS.length)];
-  if (dir===0) return {q:en, a:cn, type:"英 → 中"};
-  return {q:cn, a:en, type:"中 → 英"};
+  const i = Math.floor(Math.random()*ENG_WORDS.length);
+  const [en, cn] = ENG_WORDS[i];
+  const opts = new Set([dir===0 ? cn : en]);
+  let guard=0;
+  while(opts.size<4 && guard++<60){
+    const j = Math.floor(Math.random()*ENG_WORDS.length);
+    if (j===i) continue;
+    opts.add(dir===0 ? ENG_WORDS[j][1] : ENG_WORDS[j][0]);
+  }
+  const arr = [...opts];
+  if (dir===0) return {q:en, a:cn, opts:arr, type:"英 → 中"};
+  return {q:cn, a:en, opts:arr, type:"中 → 英"};
 }
 
 // ---------- 英语：字母 ----------
+const LOOKALIKE = ['b','d','p','q','m','n','i','l','u','v','w','e','c','o','s','z'];
 function genLetter() {
   const ch = String.fromCharCode(65 + Math.floor(Math.random()*26));
   const lo = ch.toLowerCase();
-  return {q:`字母 ${ch} 的小写是？`, a:lo, type:"字母"};
+  // 干扰项优先选长得像的字母（b/d、p/q、m/n…），更练眼力
+  const opts = new Set([lo]);
+  for (const L of LOOKALIKE){ if (opts.size>=4) break; if (L!==lo) opts.add(L); }
+  while(opts.size<4){ opts.add(String.fromCharCode(97+Math.floor(Math.random()*26))); }
+  return {q:`字母 ${ch} 的小写是？`, a:lo, opts:[...opts], type:"字母"};
 }
 
 // ---------- 关卡定义 ----------
@@ -347,7 +361,7 @@ const LEVELS = {
     {id:"math_app", name:"🧮 应用题", gen:genApp, desc:"读题 列式 算出来"}
   ],
   chi: [
-    {id:"chi_gushi", name:"📜 古诗填空", gen:()=>pick(GUSHI), desc:"背古诗 填诗句"},
+    {id:"chi_gushi", name:"📜 古诗填空", gen:()=>{const g=pick(GUSHI); return {q:g.blank, a:g.ans, opts:g.opts, tip:g.tip, sub:g.full};}, desc:"背古诗 填诗句"},
     {id:"chi_duoyin", name:"🔤 多音字", gen:()=>pick(DUOYIN), desc:"一个汉字 多个音"},
     {id:"chi_zici", name:"✏️ 词语/量词", gen:()=>pick(ZICI), desc:"字词小挑战"}
   ],
