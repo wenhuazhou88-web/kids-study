@@ -39,9 +39,9 @@
   .lv-bronze{background:#d97706} .lv-silver{background:#6b7280} .lv-gold{background:#f59e0b}
   .lv-diamond{background:linear-gradient(90deg,#38bdf8,#818cf8)} .lv-master{background:linear-gradient(90deg,#f472b6,#f59e0b)}
 
-  .subjects { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
+  .subjects { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
   .subj {
-    border-radius:24px; padding:20px 8px; text-align:center; cursor:pointer;
+    border-radius:24px; padding:16px 4px; text-align:center; cursor:pointer;
     box-shadow:0 6px 16px rgba(0,0,0,.10); transition:transform .1s;
   }
   .subj:active { transform:scale(.94); }
@@ -51,6 +51,7 @@
   .subj-math  { background:linear-gradient(145deg,#fb923c,#ef4444); }
   .subj-chi   { background:linear-gradient(145deg,#34d399,#059669); }
   .subj-eng   { background:linear-gradient(145deg,#60a5fa,#4f46e5); }
+  .subj-kepu  { background:linear-gradient(145deg,#a78bfa,#7c3aed); }
 
   .panel {
     background:#fff; border-radius:20px; padding:16px; margin-bottom:12px;
@@ -149,7 +150,7 @@
   <div id="home">
     <div class="hero">
       <h1>🎓 周周 AI 家教</h1>
-      <div class="sub">二年级上册 · 数学 / 语文 / 英语</div>
+      <div class="sub">二年级上册 · 数学 / 语文 / 英语 / 百科</div>
       <div class="level-badge" id="levelBadge">🥉 青铜小学徒</div>
     </div>
 
@@ -168,6 +169,11 @@
         <span class="icon">🇬🇧</span>
         <span class="name">英语</span>
         <span class="desc">单词 · 认读</span>
+      </div>
+      <div class="subj subj-kepu" onclick="enterSubject('kepu')">
+        <span class="icon">🌍</span>
+        <span class="name">百科</span>
+        <span class="desc">历史 · 自然科学</span>
       </div>
     </div>
 
@@ -254,9 +260,9 @@ const KOUJUE = [
   [1,9,"一九得九"],[2,9,"二九十八"],[3,9,"三九二十七"],[4,9,"四九三十六"],[5,9,"五九四十五"],
   [6,9,"六九五十四"],[7,9,"七九六十三"],[8,9,"八九七十二"],[9,9,"九九八十一"]
 ];
+const nextKoujue = makeCycler(KOUJUE);
 function genKoujue() {
-  const i = Math.floor(Math.random()*KOUJUE.length);
-  const [a,b,str] = KOUJUE[i];
+  const [a,b,str] = nextKoujue();
   return {q:`${a} × ${b} = ?`, a:a*b, tip:`口诀：${str}`};
 }
 
@@ -281,6 +287,7 @@ const GUSHI = [
   {full:"两个黄鹂鸣翠柳，一行白鹭上青天。", blank:"两个黄鹂鸣翠柳，________。", ans:"一行白鹭上青天", opts:["一行白鹭上青天","两只白鹭上青天","一行燕子飞上天"], tip:"《绝句》杜甫"},
   {full:"谁知盘中餐，粒粒皆辛苦。", blank:"谁知盘中餐，________。", ans:"粒粒皆辛苦", opts:["粒粒皆辛苦","粒粒都辛苦","粒粒皆辛劳"], tip:"《悯农》李绅：粮食来之不易"}
 ];
+const nextGushi = makeCycler(GUSHI);
 
 // ---------- 语文：多音字 ----------
 const DUOYIN = [
@@ -299,6 +306,7 @@ const DUOYIN = [
   {q:"「教书」的「教」读什么？", a:"jiāo", opts:["jiāo","jiào"], tip:"教：jiāo=教书，jiào=教室/教育"},
   {q:"「教室」的「教」读什么？", a:"jiào", opts:["jiāo","jiào"], tip:"教：jiāo=教书，jiào=教室/教育"}
 ];
+const nextDuoyin = makeCycler(DUOYIN);
 
 // ---------- 语文：汉字/词语 ----------
 const ZICI = [
@@ -311,6 +319,7 @@ const ZICI = [
   {q:"「白菜、萝卜」都是什么类？", a:"蔬菜", opts:["蔬菜","水果"], tip:"白菜萝卜是蔬菜"},
   {q:"「苹果、香蕉」都是什么类？", a:"水果", opts:["蔬菜","水果"], tip:"苹果香蕉是水果"}
 ];
+const nextZici = makeCycler(ZICI);
 
 // ---------- 英语：单词（译林 2A/2B + 3A 常用） ----------
 const ENG_WORDS = [
@@ -325,9 +334,10 @@ const ENG_WORDS = [
   ["swim","游泳"],["read","读"],["write","写"],["draw","画画"],["happy","开心"],["sad","难过"],
   ["big","大的"],["small","小的"],["long","长的"],["short","短的"],["tall","高的"],["fat","胖的"],["thin","瘦的"]
 ];
+const nextEngWord = makeCycler(ENG_WORDS);
 function genEng() {
   const dir = Math.random()<0.5 ? 0 : 1; // 0=英→中 1=中→英
-  const i = Math.floor(Math.random()*ENG_WORDS.length);
+  const i = ENG_WORDS.indexOf(nextEngWord());
   const [en, cn] = ENG_WORDS[i];
   const opts = new Set([dir===0 ? cn : en]);
   let guard=0;
@@ -343,8 +353,10 @@ function genEng() {
 
 // ---------- 英语：字母 ----------
 const LOOKALIKE = ['b','d','p','q','m','n','i','l','u','v','w','e','c','o','s','z'];
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+const nextLetter = makeCycler(LETTERS);
 function genLetter() {
-  const ch = String.fromCharCode(65 + Math.floor(Math.random()*26));
+  const ch = nextLetter();
   const lo = ch.toLowerCase();
   // 干扰项优先选长得像的字母（b/d、p/q、m/n…），更练眼力
   const opts = new Set([lo]);
@@ -352,6 +364,23 @@ function genLetter() {
   while(opts.size<4){ opts.add(String.fromCharCode(97+Math.floor(Math.random()*26))); }
   return {q:`字母 ${ch} 的小写是？`, a:lo, opts:[...opts], type:"字母"};
 }
+
+// ---------- 百科：每日历史自然科学 ----------
+const KEPU = [
+  {q:"天空为什么是蓝色的？", a:"蓝光被空气散射得最多", opts:["蓝光被空气散射得最多","空气本身就是蓝色的","云朵把天空染蓝了","大海的颜色映上去的"], tip:"太阳光有七种颜色，蓝光最容易被空气弹开（散射），所以天空看起来是蓝的"},
+  {q:"恐龙是怎么样灭绝的？", a:"小行星撞地球", opts:["小行星撞地球","被大怪兽吃光了","游到外太空去了","一直睡到冬天没醒"], tip:"6500万年前一颗小行星撞上地球，灰尘遮住太阳，恐龙就灭绝了。它们现在的后代是——鸟类！"},
+  {q:"蜜蜂怎么告诉同伴花蜜在哪里？", a:"跳圆圈舞和8字舞", opts:["跳圆圈舞和8字舞","嗡嗡叫喊几声","拼命扇翅膀","飞回去拉同伴的触角"], tip:"蜜蜂会跳舞报信：转圈=花很近，画8字=花很远，身体还指出太阳的方向"},
+  {q:"没有钟表的古人怎么知道时间？", a:"看太阳的影子（日晷）", opts:["看太阳的影子（日晷）","数自己的心跳","看猫眼睛的圆扁","问路过的鸟"], tip:"古人立一根杆子，影子跟着太阳转，就像一根大指针——这就是日晷"},
+  {q:"海水为什么是咸的？", a:"河水把盐分带进了海里", opts:["河水把盐分带进了海里","有人往海里撒盐","海底的盐自己化开","鱼游的时候吐盐"], tip:"雨水把地上的盐溶进河里，河水流入大海，太阳晒干水蒸气，盐却留了下来，几亿年越积越咸"},
+  {q:"中国的四大发明是哪四样？", a:"造纸术、印刷术、火药、指南针", opts:["造纸术、印刷术、火药、指南针","长城、故宫、兵马俑、大运河","算盘、毛笔、砚台、宣纸","火药、鞭炮、烟花、火箭"], tip:"这四样都是咱们老祖宗发明的，火药和指南针传遍世界，改变了全人类的生活"},
+  {q:"金字塔是干什么用的？", a:"古埃及法老的陵墓", opts:["古埃及法老的陵墓","古代的大粮仓","外星人的飞船","打仗用的城堡"], tip:"法老是古埃及的国王，他们相信死后能复活，所以造了大金字塔来安放自己"},
+  {q:"为什么先看到闪电、后听到雷声？", a:"光比声音跑得快", opts:["光比声音跑得快","闪电先发生","雷声走得慢在睡觉","眼睛比耳朵灵"], tip:"光每秒跑30万公里，声音每秒只跑340米，所以闪电总是先到、雷声后到"},
+  {q:"企鹅住在哪里？", a:"南极", opts:["南极","北极","撒哈拉沙漠","热带雨林"], tip:"企鹅是南极的居民，羽毛又密又厚不怕冷，还会在冰上滑行。北极住的可是北极熊哦"},
+  {q:"秋天树叶为什么会变黄？", a:"叶绿素减少了", opts:["叶绿素减少了","树生病了","被太阳晒黄的","被秋风染黄的"], tip:"叶子靠绿色的叶绿素做食物，秋天变冷叶绿素变少，叶子里的黄色（胡萝卜素）就露出来了"},
+  {q:"古人出门怎么认方向？", a:"用指南针（最早叫司南）", opts:["用指南针（最早叫司南）","看天上的云","问路边的蚂蚁","听风的声音"], tip:"咱们中国祖先发明了指南针，最早的「司南」像一把磁铁小勺，永远指着南方"},
+  {q:"鲸鱼是鱼吗？", a:"不是，它是哺乳动物", opts:["不是，它是哺乳动物","是，它住在海里","是，它会游泳","不是，它是爬行动物"], tip:"鲸鱼虽然住在海里长得像鱼，但它用肺呼吸、喝妈妈的奶长大，和人类一样是哺乳动物"}
+];
+const nextKepu = makeCycler(KEPU);
 
 // ---------- 关卡定义 ----------
 const LEVELS = {
@@ -361,19 +390,33 @@ const LEVELS = {
     {id:"math_app", name:"🧮 应用题", gen:genApp, desc:"读题 列式 算出来"}
   ],
   chi: [
-    {id:"chi_gushi", name:"📜 古诗填空", gen:()=>{const g=pick(GUSHI); return {q:g.blank, a:g.ans, opts:g.opts, tip:g.tip, sub:g.full};}, desc:"背古诗 填诗句"},
-    {id:"chi_duoyin", name:"🔤 多音字", gen:()=>pick(DUOYIN), desc:"一个汉字 多个音"},
-    {id:"chi_zici", name:"✏️ 词语/量词", gen:()=>pick(ZICI), desc:"字词小挑战"}
+    {id:"chi_gushi", name:"📜 古诗填空", gen:()=>{const g=nextGushi(); return {q:g.blank, a:g.ans, opts:g.opts, tip:g.tip, sub:g.full};}, desc:"背古诗 填诗句"},
+    {id:"chi_duoyin", name:"🔤 多音字", gen:()=>nextDuoyin(), desc:"一个汉字 多个音"},
+    {id:"chi_zici", name:"✏️ 词语/量词", gen:()=>nextZici(), desc:"字词小挑战"}
   ],
   eng: [
     {id:"eng_words", name:"🇬🇧 单词闯关", gen:genEng, desc:"中英互译"},
     {id:"eng_letter", name:"🔡 字母乐园", gen:genLetter, desc:"大小写配对"}
+  ],
+  kepu: [
+    {id:"kepu_daily", name:"🌍 每日历史自然", gen:()=>nextKepu(), desc:"历史 · 自然科学知识"}
   ]
 };
 
 // ---------- 工具 ----------
 function rand(a,b){ return a+Math.floor(Math.random()*(b-a+1)); }
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+// 不重复抽题器：洗牌后按顺序抽，抽完一轮自动重洗（同轮内不重复）
+function makeCycler(arr){
+  let idx = arr.length;
+  return function(){
+    if (idx >= arr.length){
+      for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; }
+      idx = 0;
+    }
+    return arr[idx++];
+  };
+}
 
 // ---------- 状态 ----------
 let state = {
@@ -430,9 +473,9 @@ function refreshTop(){
 function renderHomeChips(){
   const box = document.getElementById('homeChips');
   box.innerHTML = '';
-  for (const subj of ['math','chi','eng']){
+  for (const subj of ['math','chi','eng','kepu']){
     const h = document.createElement('h2');
-    h.textContent = ({math:'🔢 数学', chi:'📖 语文', eng:'🇬🇧 英语'})[subj];
+    h.textContent = ({math:'🔢 数学', chi:'📖 语文', eng:'🇬🇧 英语', kepu:'🌍 百科'})[subj];
     h.style.width='100%'; h.style.marginTop='6px';
     box.appendChild(h);
     for (const lv of LEVELS[subj]){
@@ -468,7 +511,7 @@ function showQ(q, level){
   qType.textContent = q.type || level.name;
   qText.textContent = q.q;
   qSub.textContent = q.sub || '';
-  qEmoji.textContent = q.emoji || (state.subject==='math'?'🔢':state.subject==='chi'?'📖':'🇬🇧');
+  qEmoji.textContent = q.emoji || ({math:'🔢', chi:'📖', eng:'🇬🇧', kepu:'🌍'}[state.subject] || '🧠');
   document.getElementById('feedback').textContent='';
   document.getElementById('fbTip').textContent='';
   document.getElementById('nextBtn').style.display='none';
