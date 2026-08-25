@@ -383,6 +383,79 @@ function genEngPic(){
   return {q:`看图写出单词（首字母提示：${hint}）`, a:word, emoji:emoji, type:"✏️ 看图写单词", input:true, tip:`中文意思：${cn}`};
 }
 
+// ---------- 英语：典范英语绘本阅读（1B / 2A 难度，原创小故事） ----------
+// 仿典范英语句型和词汇难度，文本全部原创（人物用 Mum/Dad/通用名词，不出现牛津树专属角色名）
+const ENG_BOOKS = [
+  // ---- 1B：单句短故事，高频词 this/is/look/see/has/can ----
+  {g:"1B", t:"My Dog", emoji:"🐕",
+   story:"This is my dog.\nMy dog is big.\nMy dog can run.\nI like my dog.",
+   q:"What can the dog do?", a:"It can run.",
+   opts:["It can run.","It can jump.","It can sing.","It is small."],
+   tip:"这是我的狗。它很大，它会跑，我喜欢它。"},
+  {g:"1B", t:"Red and Blue", emoji:"⚽",
+   story:"Look at the ball.\nIt is red.\nLook at the bag.\nIt is blue.\nI like blue.",
+   q:"What colour is the bag?", a:"It is blue.",
+   opts:["It is blue.","It is red.","It is yellow.","It is green."],
+   tip:"看这个球，它是红色的。看这个书包，它是蓝色的。"},
+  {g:"1B", t:"The Duck", emoji:"🦆",
+   story:"Here is the park.\nI can see a duck.\nThe duck is little.\nThe duck says, \"Quack!\"",
+   q:"What can you see in the park?", a:"A duck.",
+   opts:["A duck.","A dog.","A cat.","A bird."],
+   tip:"公园里有一只小鸭子，它说：嘎嘎！"},
+  {g:"1B", t:"The Cake", emoji:"🎂",
+   story:"This is my Mum.\nShe has a cake.\nThe cake is for Dad.\n\"Thank you!\" says Dad.",
+   q:"Who has a cake?", a:"My Mum.",
+   opts:["My Mum.","My Dad.","My dog.","My sister."],
+   tip:"妈妈有一个蛋糕，蛋糕是给爸爸的。"},
+  {g:"1B", t:"The Fat Cat", emoji:"🐈",
+   story:"Look at the cat.\nThe cat is fat.\nThe cat is on the mat.\nThe cat can sleep.",
+   q:"Where is the cat?", a:"On the mat.",
+   opts:["On the mat.","In the tree.","Under the bed.","In the bag."],
+   tip:"胖胖的猫趴在垫子上睡觉。"},
+  {g:"1B", t:"My Toys", emoji:"🚗",
+   story:"This is my toy car.\nIt is fast.\nThis is my toy plane.\nIt can fly.\nI like my toys.",
+   q:"What can fly?", a:"The toy plane.",
+   opts:["The toy plane.","The toy car.","The ball.","The bag."],
+   tip:"我的玩具汽车跑得快，玩具飞机能飞。"},
+  // ---- 2A：4-6 句短故事，加 is it / has / very / now / cannot ----
+  {g:"2A", t:"The Big Egg", emoji:"🥚",
+   story:"Look at this egg.\nIt is very big.\nIs it a duck egg?\nNo.\nIs it a chicken egg?\nNo!\nIt is a dinosaur egg!\nOh no!",
+   q:"What is the egg?", a:"A dinosaur egg.",
+   opts:["A dinosaur egg.","A duck egg.","A chicken egg.","A bird egg."],
+   tip:"这个蛋太大了，不是鸭蛋也不是鸡蛋——是恐龙蛋！"},
+  {g:"2A", t:"A Present for Mum", emoji:"💐",
+   story:"Dad has a present.\nIt is for Mum.\nIs it a book?\nNo.\nIs it a hat?\nNo.\nIt is a flower!\nMum is happy.",
+   q:"What is the present?", a:"A flower.",
+   opts:["A flower.","A book.","A hat.","A cake."],
+   tip:"爸爸有个礼物，不是书也不是帽子，是一朵花！"},
+  {g:"2A", t:"The Wet Dog", emoji:"🐶",
+   story:"The dog is wet.\nHe is sad.\n\"Poor dog!\" says Dad.\nDad has a towel.\nNow the dog is dry.\nHe is happy.",
+   q:"How is the dog at the end?", a:"He is dry.",
+   opts:["He is dry.","He is wet.","He is sad.","He is big."],
+   tip:"小狗淋湿了很难过，爸爸用毛巾把它擦干，它就开心了。"},
+  {g:"2A", t:"The Ball in the Tree", emoji:"🎈",
+   story:"The boy has a ball.\nOh no!\nThe ball is in the tree.\nThe dog jumps and jumps.\nLook!\nThe ball is down!",
+   q:"Who gets the ball down?", a:"The dog.",
+   opts:["The dog.","The boy.","The girl.","Dad."],
+   tip:"球挂到树上了，小狗一直跳啊跳，把球弄下来了。"},
+  {g:"2A", t:"At the Pool", emoji:"🏊",
+   story:"We are at the pool.\nDad can swim.\nI can swim, too.\nMy sister cannot swim.\n\"Help!\"\nSplash!",
+   q:"Who cannot swim?", a:"My sister.",
+   opts:["My sister.","Dad.","I.","The dog."],
+   tip:"爸爸和我会游泳，妹妹还不会，她喊救命，扑通！"},
+  {g:"2A", t:"Tidy Up!", emoji:"🧸",
+   story:"The room is a mess.\nToys are on the floor.\nMum is cross.\n\"Tidy up!\"\nWe put the toys away.\nGood!",
+   q:"What do we do?", a:"We tidy up.",
+   opts:["We tidy up.","We play.","We sleep.","We eat."],
+   tip:"房间乱糟糟，妈妈生气了。我们把玩具收好，真棒！"}
+];
+const nextEngBook = makeCycler(ENG_BOOKS);
+function genEngBook(){
+  const b = nextEngBook();
+  return {q:b.story, sub:"📌 " + b.q, a:b.a, opts:shuffle(b.opts.slice()),
+    emoji:b.emoji, type:"📖 典范英语 " + b.g + " · " + b.t, book:true, tip:b.tip};
+}
+
 // ---------- 百科：每日历史自然科学 ----------
 const KEPU = [
   {q:"天空为什么是蓝色的？", a:"蓝光被空气散射得最多", opts:["蓝光被空气散射得最多","空气本身就是蓝色的","云朵把天空染蓝了","大海的颜色映上去的"], tip:"太阳光有七种颜色，蓝光最容易被空气弹开（散射），所以天空看起来是蓝的"},
@@ -415,6 +488,7 @@ const LEVELS = {
   eng: [
     {id:"eng_words", name:"🇬🇧 单词闯关", gen:genEng, desc:"中英互译"},
     {id:"eng_pic", name:"🖼️ 看图写单词", gen:genEngPic, desc:"一年级下册 · 看图拼写"},
+    {id:"eng_book", name:"📖 绘本阅读", gen:genEngBook, desc:"典范英语 1B · 2A 小故事"},
     {id:"eng_letter", name:"🔡 字母乐园", gen:genLetter, desc:"大小写配对"}
   ],
   kepu: [
@@ -529,6 +603,8 @@ function showQ(q, level){
   const qEmoji = document.getElementById('qEmoji');
   qType.textContent = q.type || level.name;
   qText.textContent = q.q;
+  qText.style.whiteSpace = q.book ? 'pre-line' : '';
+  qText.style.fontSize = q.book ? '21px' : '';
   qSub.textContent = q.sub || '';
   qEmoji.textContent = q.emoji || ({math:'🔢', chi:'📖', eng:'🇬🇧', kepu:'🌍'}[state.subject] || '🧠');
   qEmoji.style.fontSize = q.input ? '110px' : '';
@@ -634,7 +710,7 @@ function answer(choice, q, btn){
     fb.textContent = "😅 再想想……";
     fb.className = 'feedback fb-no';
     tip.textContent = q.tip ? `💡 ${q.tip}` : `正确答案：${q.a}`;
-    state.wrong.unshift({q:q.q, your:choice, ans:q.a, subject:state.subject, t:Date.now()});
+    state.wrong.unshift({q:q.book ? (q.sub||q.q) : q.q, your:choice, ans:q.a, subject:state.subject, t:Date.now()});
     state.wrong = state.wrong.slice(0, 100);
   }
   save();
