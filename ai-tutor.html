@@ -365,6 +365,24 @@ function genLetter() {
   return {q:`字母 ${ch} 的小写是？`, a:lo, opts:[...opts], type:"字母"};
 }
 
+// ---------- 英语：看图写单词（一年级下册常用） ----------
+const ENG_PIC = [
+  // [emoji 图, 单词, 中文意思]
+  ["🐱","cat","猫"],["🐶","dog","狗"],["🐦","bird","鸟"],["🐼","panda","熊猫"],["🐯","tiger","老虎"],["🐵","monkey","猴子"],
+  ["🍎","apple","苹果"],["🍌","banana","香蕉"],["🍐","pear","梨"],["🍊","orange","橙子"],
+  ["🥛","milk","牛奶"],["🍰","cake","蛋糕"],["🥚","egg","鸡蛋"],["🍚","rice","米饭"],
+  ["📖","book","书"],["🖊️","pen","钢笔"],["✏️","pencil","铅笔"],["🎒","bag","书包"],["📏","ruler","尺子"],
+  ["👀","eye","眼睛"],["👃","nose","鼻子"],["👄","mouth","嘴巴"],["👂","ear","耳朵"],["✋","hand","手"],["🦶","foot","脚"],
+  ["🏃","run","跑"],["🏊","swim","游泳"],["🎨","draw","画画"],["🎤","sing","唱歌"],
+  ["😄","happy","开心"],["😢","sad","难过"]
+];
+const nextEngPic = makeCycler(ENG_PIC);
+function genEngPic(){
+  const [emoji, word, cn] = nextEngPic();
+  const hint = word[0] + '_'.repeat(word.length-1);
+  return {q:`看图写出单词（首字母提示：${hint}）`, a:word, emoji:emoji, type:"✏️ 看图写单词", input:true, tip:`中文意思：${cn}`};
+}
+
 // ---------- 百科：每日历史自然科学 ----------
 const KEPU = [
   {q:"天空为什么是蓝色的？", a:"蓝光被空气散射得最多", opts:["蓝光被空气散射得最多","空气本身就是蓝色的","云朵把天空染蓝了","大海的颜色映上去的"], tip:"太阳光有七种颜色，蓝光最容易被空气弹开（散射），所以天空看起来是蓝的"},
@@ -396,6 +414,7 @@ const LEVELS = {
   ],
   eng: [
     {id:"eng_words", name:"🇬🇧 单词闯关", gen:genEng, desc:"中英互译"},
+    {id:"eng_pic", name:"🖼️ 看图写单词", gen:genEngPic, desc:"一年级下册 · 看图拼写"},
     {id:"eng_letter", name:"🔡 字母乐园", gen:genLetter, desc:"大小写配对"}
   ],
   kepu: [
@@ -512,6 +531,7 @@ function showQ(q, level){
   qText.textContent = q.q;
   qSub.textContent = q.sub || '';
   qEmoji.textContent = q.emoji || ({math:'🔢', chi:'📖', eng:'🇬🇧', kepu:'🌍'}[state.subject] || '🧠');
+  qEmoji.style.fontSize = q.input ? '110px' : '';
   document.getElementById('feedback').textContent='';
   document.getElementById('fbTip').textContent='';
   document.getElementById('nextBtn').style.display='none';
@@ -521,6 +541,30 @@ function showQ(q, level){
 function renderOptions(q){
   const box = document.getElementById('options');
   box.innerHTML='';
+  // 看图写单词：输入模式
+  if (q.input){
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;gap:10px;grid-column:1/-1;';
+    const inp = document.createElement('input');
+    inp.id = 'wordInput';
+    inp.type = 'text';
+    inp.autocomplete = 'off';
+    inp.autocapitalize = 'off';
+    inp.autocorrect = 'off';
+    inp.spellcheck = false;
+    inp.placeholder = '✏️ 输入单词…';
+    inp.style.cssText = 'flex:1;min-width:0;border:3px solid #e5e7eb;border-radius:18px;padding:14px 16px;font-size:26px;font-weight:700;color:#374151;outline:none;text-align:center;letter-spacing:4px;background:#fff;';
+    inp.addEventListener('keydown', e=>{ if(e.key==='Enter') submitWord(q); });
+    const btn = document.createElement('button');
+    btn.id = 'wordSubmit';
+    btn.textContent = '✅ 提交';
+    btn.style.cssText = 'border:none;border-radius:18px;padding:14px 24px;font-size:22px;font-weight:800;background:#22c55e;color:#fff;cursor:pointer;';
+    btn.onclick = ()=>submitWord(q);
+    wrap.appendChild(inp); wrap.appendChild(btn);
+    box.appendChild(wrap);
+    setTimeout(()=>inp.focus(), 50);
+    return;
+  }
   let opts = q.opts || makeOpts(q.a);
   opts = shuffle(opts.slice());
   for (const o of opts){
@@ -529,6 +573,17 @@ function renderOptions(q){
     b.onclick = ()=>answer(o, q, b);
     box.appendChild(b);
   }
+}
+
+function submitWord(q){
+  const inp = document.getElementById('wordInput');
+  if (!inp) return;
+  const v = inp.value;
+  if (!v.trim()) return; // 空输入不判分
+  inp.disabled = true;
+  const btn = document.getElementById('wordSubmit');
+  if (btn) btn.disabled = true;
+  answer(v, q, null);
 }
 
 function makeOpts(ans){
@@ -554,14 +609,16 @@ function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.rand
 
 // ---------- 答题 ----------
 function answer(choice, q, btn){
-  const ok = String(choice) === String(q.a);
+  const ok = q.input
+    ? String(choice).trim().toLowerCase() === String(q.a).trim().toLowerCase()
+    : String(choice) === String(q.a);
   const fb = document.getElementById('feedback');
   const tip = document.getElementById('fbTip');
   const btns = document.querySelectorAll('.opt');
   btns.forEach(b=>b.onclick=null);
 
   if (ok){
-    btn.classList.add('correct');
+    if (btn) btn.classList.add('correct');
     state.combo++;
     state.bestCombo = Math.max(state.bestCombo, state.combo);
     let gain = 10 + Math.min(state.combo,10);
@@ -572,7 +629,7 @@ function answer(choice, q, btn){
     if (state.combo>=3) confetti(8);
     if (state.combo>0 && state.combo%10===0) showPopup("🔥 十连击！","你已经连续答对 "+state.combo+" 题，无敌了！","🎯");
   } else {
-    btn.classList.add('wrong');
+    if (btn) btn.classList.add('wrong');
     state.combo = 0;
     fb.textContent = "😅 再想想……";
     fb.className = 'feedback fb-no';
