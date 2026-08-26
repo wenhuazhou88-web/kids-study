@@ -351,20 +351,6 @@ function genEng() {
   return {q:cn, a:en, opts:arr, type:"中 → 英"};
 }
 
-// ---------- 英语：字母 ----------
-const LOOKALIKE = ['b','d','p','q','m','n','i','l','u','v','w','e','c','o','s','z'];
-const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-const nextLetter = makeCycler(LETTERS);
-function genLetter() {
-  const ch = nextLetter();
-  const lo = ch.toLowerCase();
-  // 干扰项优先选长得像的字母（b/d、p/q、m/n…），更练眼力
-  const opts = new Set([lo]);
-  for (const L of LOOKALIKE){ if (opts.size>=4) break; if (L!==lo) opts.add(L); }
-  while(opts.size<4){ opts.add(String.fromCharCode(97+Math.floor(Math.random()*26))); }
-  return {q:`字母 ${ch} 的小写是？`, a:lo, opts:[...opts], type:"字母"};
-}
-
 // ---------- 英语：看图写单词（一年级下册常用） ----------
 const ENG_PIC = [
   // [emoji 图, 单词, 中文意思]
@@ -488,8 +474,7 @@ const LEVELS = {
   eng: [
     {id:"eng_words", name:"🇬🇧 单词闯关", gen:genEng, desc:"中英互译"},
     {id:"eng_pic", name:"🖼️ 看图写单词", gen:genEngPic, desc:"一年级下册 · 看图拼写"},
-    {id:"eng_book", name:"📖 绘本阅读", gen:genEngBook, desc:"典范英语 1B · 2A 小故事"},
-    {id:"eng_letter", name:"🔡 字母乐园", gen:genLetter, desc:"大小写配对"}
+    {id:"eng_book", name:"📖 绘本阅读", gen:genEngBook, desc:"典范英语 1B · 2A 小故事"}
   ],
   kepu: [
     {id:"kepu_daily", name:"🌍 每日历史自然", gen:()=>nextKepu(), desc:"历史 · 自然科学知识"}
