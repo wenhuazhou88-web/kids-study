@@ -60,6 +60,16 @@
   .panel h2 { font-size:16px; color:#374151; margin-bottom:10px; }
 
   .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  /* ===== 今日任务面板 ===== */
+  .task-row {
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    width:100%; border:none; border-radius:14px; padding:11px 14px; margin-bottom:8px;
+    font-size:15px; font-weight:600; cursor:pointer; text-align:left;
+    background:#fffbeb; color:#92400e; border:1px solid #fde68a;
+  }
+  .task-row:active { transform:scale(.98); }
+  .task-row .tr-ok { color:#16a34a; font-weight:800; white-space:nowrap; }
+  .task-row .tr-now { color:#b45309; font-weight:700; white-space:nowrap; }
   .chip {
     border:none; border-radius:999px; padding:8px 16px; font-size:15px; font-weight:600;
     cursor:pointer; background:#eef2ff; color:#4338ca;
@@ -141,7 +151,7 @@
 
   <!-- 顶部状态 -->
   <div class="topbar">
-    <span class="star">⭐ <span id="stars">0</span></span>
+    <span class="star" id="starRow" title="今日任务星：每天最多 5 颗">今日 ⭐☆☆☆☆</span>
     <span class="combo" id="combo">🔥 连击 0</span>
     <button onclick="toggleWrong()">错题本</button>
   </div>
@@ -154,11 +164,17 @@
       <div class="level-badge" id="levelBadge">🥉 青铜小学徒</div>
     </div>
 
+    <!-- 今日任务 -->
+    <div class="panel" id="dailyPanel">
+      <h2>🎯 今日任务 <span style="font-size:14px;color:#888" id="dailyStarText"></span></h2>
+      <div id="dailyList"></div>
+    </div>
+
     <div class="subjects">
       <div class="subj subj-math" onclick="enterSubject('math')">
         <span class="icon">🔢</span>
         <span class="name">数学</span>
-        <span class="desc">乘法口诀 · 加减法</span>
+        <span class="desc">口算 · 应用题</span>
       </div>
       <div class="subj subj-chi" onclick="enterSubject('chi')">
         <span class="icon">📖</span>
@@ -230,7 +246,7 @@
     <div class="big" id="popEmoji">🎉</div>
     <h3 id="popTitle">太棒了！</h3>
     <p id="popMsg">继续加油！</p>
-    <button onclick="closePopup()">继续闯关 ➜</button>
+    <button id="popOk" onclick="closePopup()">继续闯关 ➜</button>
   </div>
 </div>
 
@@ -247,23 +263,6 @@ function genMathArith() {
   if (type===1){ let a=rand(20,99), b=rand(1,a-1); return {q:`${a} - ${b} = ?`, a:a-b}; }
   if (type===2){ const a=rand(2,9), b=rand(2,9); return {q:`${a} × ${b} = ?`, a:a*b, tip:`口诀：${a}${b}${a*b}，${a} 的口诀背到第 ${b} 句`}; }
   const b=rand(2,9), c=rand(2,9), a=b*c; return {q:`${a} ÷ ${b} = ?`, a:c, tip:`想口诀：几 ${b} 得 ${a}？`};
-}
-
-// ---------- 数学：乘法口诀 ----------
-const KOUJUE = [
-  [1,1,"一一得一"],[1,2,"一二得二"],[2,2,"二二得四"],[1,3,"一三得三"],[2,3,"二三得六"],[3,3,"三三得九"],
-  [1,4,"一四得四"],[2,4,"二四得八"],[3,4,"三四十二"],[4,4,"四四十六"],[1,5,"一五得五"],[2,5,"二五一十"],
-  [3,5,"三五十五"],[4,5,"四五二十"],[5,5,"五五二十五"],[1,6,"一六得六"],[2,6,"二六十二"],[3,6,"三六十八"],
-  [4,6,"四六二十四"],[5,6,"五六三十"],[6,6,"六六三十六"],[1,7,"一七得七"],[2,7,"二七十四"],[3,7,"三七二十一"],
-  [4,7,"四七二十八"],[5,7,"五七三十五"],[6,7,"六七四十二"],[7,7,"七七四十九"],[1,8,"一八得八"],[2,8,"二八十六"],
-  [3,8,"三八二十四"],[4,8,"四八三十二"],[5,8,"五八四十"],[6,8,"六八四十八"],[7,8,"七八五十六"],[8,8,"八八六十四"],
-  [1,9,"一九得九"],[2,9,"二九十八"],[3,9,"三九二十七"],[4,9,"四九三十六"],[5,9,"五九四十五"],
-  [6,9,"六九五十四"],[7,9,"七九六十三"],[8,9,"八九七十二"],[9,9,"九九八十一"]
-];
-const nextKoujue = makeCycler(KOUJUE);
-function genKoujue() {
-  const [a,b,str] = nextKoujue();
-  return {q:`${a} × ${b} = ?`, a:a*b, tip:`口诀：${str}`};
 }
 
 // ---------- 数学：应用题 ----------
@@ -288,6 +287,18 @@ const GUSHI = [
   {full:"谁知盘中餐，粒粒皆辛苦。", blank:"谁知盘中餐，________。", ans:"粒粒皆辛苦", opts:["粒粒皆辛苦","粒粒都辛苦","粒粒皆辛劳"], tip:"《悯农》李绅：粮食来之不易"}
 ];
 const nextGushi = makeCycler(GUSHI);
+// 古诗周任务生成：本周已答对（okQ）的不再出，从剩余诗里轮换；答对才计数、一周达标 2 首
+function genGushi(){
+  ensureWeek();
+  const skip = new Set(state.week.okQ || []);
+  let g = null;
+  for (let i=0;i<GUSHI.length+5 && !g;i++){
+    const c = nextGushi();
+    if (!skip.has(c.full)) g = c;
+  }
+  if (!g) g = GUSHI[0];
+  return {q:g.blank, a:g.ans, opts:g.opts, tip:g.tip, sub:g.full};
+}
 
 // ---------- 语文：多音字 ----------
 const DUOYIN = [
@@ -461,11 +472,10 @@ const nextKepu = makeCycler(KEPU);
 const LEVELS = {
   math: [
     {id:"math_arith", name:"🔢 口算小达人", gen:genMathArith, desc:"加减乘除 快又准"},
-    {id:"math_koujue", name:"🎵 乘法口诀", gen:genKoujue, desc:"背口诀 练乘法"},
     {id:"math_app", name:"🧮 应用题", gen:genApp, desc:"读题 列式 算出来"}
   ],
   chi: [
-    {id:"chi_gushi", name:"📜 古诗填空", gen:()=>{const g=nextGushi(); return {q:g.blank, a:g.ans, opts:g.opts, tip:g.tip, sub:g.full};}, desc:"背古诗 填诗句"},
+    {id:"chi_gushi", name:"📜 古诗填空", gen:genGushi, desc:"背古诗 填诗句（每周答对 2 首达标）"},
     {id:"chi_duoyin", name:"🔤 多音字", gen:()=>nextDuoyin(), desc:"一个汉字 多个音"},
     {id:"chi_zici", name:"✏️ 词语/量词", gen:()=>nextZici(), desc:"字词小挑战"}
   ],
@@ -494,11 +504,105 @@ function makeCycler(arr){
   };
 }
 
+// ---------- 每日任务规则（2026-09-06 家长定制） ----------
+// 每日 5 星按科目分组：数学=★（口算20+应用题2都完成）｜多音字5=★｜单词5=★｜绘本1篇=★｜百科1篇=★
+// 古诗为周任务：一周答对 2 首达标，不占每日星
+// 达标即锁：任务关达到配额后 startLevel/nextQ 拦截（提示已达标，可玩未达标或自由关卡）
+// 自由关卡（看图写单词/词语量词等未列入规则）不受锁
+const DAY_STAR_GROUPS = [
+  {icon:"🔢", name:"数学", subj:"math", items:[["math_arith",20,"道"],["math_app",2,"道"]]},
+  {icon:"🔤", name:"语文 · 多音字", subj:"chi", items:[["chi_duoyin",5,"道"]]},
+  {icon:"🇬🇧", name:"英语 · 单词", subj:"eng", items:[["eng_words",5,"道"]]},
+  {icon:"📖", name:"绘本阅读", subj:"eng", items:[["eng_book",1,"篇"]]},
+  {icon:"🌍", name:"百科", subj:"kepu", items:[["kepu_daily",1,"篇"]]}
+];
+const WEEK_GUSHI = {icon:"📜", name:"古诗", id:"chi_gushi", need:2, unit:"首"};
+// 由分组拍平生成 {关卡id: {need, unit}}，供锁定/计数用
+const DAY_RULES = {};
+for (const g of DAY_STAR_GROUPS) for (const [id,need,unit] of g.items) DAY_RULES[id] = {need, unit};
+
+function todayKey(){
+  const x = new Date();
+  return x.getFullYear() + "-" + (x.getMonth()+1) + "-" + x.getDate();
+}
+function weekMondayKey(){
+  const x = new Date();
+  x.setDate(x.getDate() - ((x.getDay()+6)%7)); // 回到本周一
+  return x.getFullYear() + "-" + (x.getMonth()+1) + "-" + x.getDate();
+}
+function ensureDay(){
+  const k = todayKey();
+  if (state.daily && state.daily.d === k) return;
+  state.daily = {d:k, c:{}};
+}
+function ensureWeek(){
+  const k = weekMondayKey();
+  if (state.week && state.week.w === k) return;
+  state.week = {w:k, c:{chi_gushi:0}, okQ:[]};
+}
+function dayCount(id){ ensureDay(); return state.daily.c[id] || 0; }
+function dayDone(id){ return dayCount(id) >= (DAY_RULES[id] && DAY_RULES[id].need); }
+function weekDone(){ ensureWeek(); return (state.week.c.chi_gushi || 0) >= WEEK_GUSHI.need; }
+// 任务关是否已达标（锁定判定）：古诗按周、其他按日；自由关卡恒 false
+function taskLocked(id){
+  if (!id) return false;
+  if (id==='chi_gushi') return weekDone();
+  return !!DAY_RULES[id] && dayDone(id);
+}
+// 今日获得星星数（最多 5）
+function todayStars(){
+  let n = 0;
+  for (const g of DAY_STAR_GROUPS) if (g.items.every(([id])=>dayDone(id))) n++;
+  return n;
+}
+function starRowText(){ return "今日 " + "⭐".repeat(todayStars()) + "☆".repeat(5-todayStars()); }
+function refreshDailyStars(){
+  const el = document.getElementById('starRow');
+  if (el) el.textContent = starRowText();
+  const t = document.getElementById('dailyStarText');
+  if (t) t.textContent = "⭐ 已得 " + todayStars() + " / 5（古诗每周 2 首另算）";
+}
+
+// 渲染今日任务面板
+function renderDailyList(){
+  ensureDay(); ensureWeek();
+  const box = document.getElementById('dailyList');
+  if (!box) return;
+  box.innerHTML = '';
+  // 5 个每日星组
+  for (let i=0;i<DAY_STAR_GROUPS.length;i++){
+    const g = DAY_STAR_GROUPS[i];
+    const row = document.createElement('button');
+    row.className = 'task-row';
+    const parts = g.items.map(([id,need,unit]) => dayDone(id) ? `${need}${unit} ✅` : `${Math.min(dayCount(id),need)}/${need}${unit}`);
+    const allDone = g.items.every(([id])=>dayDone(id));
+    row.innerHTML = `<span>${g.icon} ${g.name}</span><span class="${allDone?'tr-ok':'tr-now'}">${parts.join(' · ')}${allDone?' ⭐':''}</span>`;
+    row.onclick = ()=>openDailyGroup(i);
+    box.appendChild(row);
+  }
+  // 古诗周任务（不占星）
+  const wd = weekDone();
+  const wk = document.createElement('button');
+  wk.className = 'task-row';
+  wk.innerHTML = `<span>${WEEK_GUSHI.icon} ${WEEK_GUSHI.name}（每周 ${WEEK_GUSHI.need} ${WEEK_GUSHI.unit}，答对才算）</span><span class="${wd?'tr-ok':'tr-now'}">${Math.min(state.week.c.chi_gushi||0, WEEK_GUSHI.need)}/${WEEK_GUSHI.need}${WEEK_GUSHI.unit}${wd?' ✅':''}</span>`;
+  wk.onclick = ()=>{ if (wd){ showPopup("🎉 本周古诗已达标", "这周 2 首古诗都背出来啦，下周再来新的！", "📜"); return; } startLevel('chi', findLevel('chi','chi_gushi')); };
+  box.appendChild(wk);
+  refreshDailyStars();
+}
+function openDailyGroup(i){
+  const g = DAY_STAR_GROUPS[i];
+  ensureDay();
+  if (g.items.every(([id])=>dayDone(id))){ showPopup("🎉 今日已达标", "「" + g.name + "」今天做完啦，明天继续！", "⭐"); return; }
+  const target = g.items.find(([id])=>!dayDone(id));
+  startLevel(g.subj, findLevel(g.subj, target[0]));
+}
+
 // ---------- 状态 ----------
 let state = {
   subject:null, level:null,
   stars: 0, combo: 0, bestCombo: 0,
-  wrong: [] // {q, your, ans, subject}
+  wrong: [], // {q, your, ans, subject}
+  daily: null, week: null   // 每日任务计数 {d,c:{关卡id:n}} / 古诗周计数 {w, c, okQ}（ensureDay/ensureWeek 初始化）
 };
 try {
   const saved = JSON.parse(localStorage.getItem('zz_tutor_v1')||'null');
@@ -538,11 +642,18 @@ function levelInfo(stars){
   return {name:"🥉 青铜小学徒", cls:"lv-bronze"};
 }
 function refreshTop(){
-  document.getElementById('stars').textContent = state.stars;
+  refreshDailyStars();
   document.getElementById('combo').textContent = '🔥 连击 ' + state.combo;
   const lv = levelInfo(state.stars);
   const b = document.getElementById('levelBadge');
   b.textContent = lv.name; b.className = 'level-badge ' + lv.cls;
+}
+function lvName(id){
+  for (const s in LEVELS){
+    const l = LEVELS[s].find(x=>x.id===id);
+    if (l) return l.name.replace(/^[^\u4e00-\u9fa5]+/, ''); // 去 emoji 前缀
+  }
+  return id;
 }
 
 // ---------- 首页 ----------
@@ -568,6 +679,12 @@ function enterSubject(subj){
 }
 
 function startLevel(subject, level){
+  // 每日/每周任务达标即锁：不再出该关新题
+  if (taskLocked(level.id)){
+    if (level.id==='chi_gushi'){ showPopup("🎉 本周古诗已达标", "这周 " + WEEK_GUSHI.need + " 首古诗都背出来啦，下周再来新的！", "📜", "回首页 🏠", goHome); }
+    else { showPopup("🎉 今日已达标", "「" + lvName(level.id) + "」今天的题做完啦，明天继续！", "⭐", "回首页 🏠", goHome); }
+    return;
+  }
   state.subject = subject; state.level = level.id;
   document.getElementById('home').style.display='none';
   document.getElementById('quizArea').style.display='block';
@@ -696,6 +813,8 @@ function answer(choice, q, btn){
     state.wrong.unshift({q:q.book ? (q.sub||q.q) : q.q, your:choice, ans:q.a, subject:state.subject, t:Date.now()});
     state.wrong = state.wrong.slice(0, 100);
   }
+  // —— 每日/每周任务计数（答一题计一题；古诗答对才计）——
+  countTask(ok, q);
   save();
   refreshTop();
   document.getElementById('nextBtn').style.display='block';
@@ -706,8 +825,41 @@ function answer(choice, q, btn){
   }
 }
 
+// 任务计数与达标弹窗（state.level 为当前关卡；q 用于古诗记录完整诗句）
+function countTask(ok, q){
+  ensureDay(); ensureWeek();
+  const id = state.level;
+  if (!id) return;
+  if (id === 'chi_gushi'){
+    if (!ok) return;
+    const full = q && q.sub;
+    if (full && state.week.okQ.indexOf(full) < 0){
+      state.week.okQ.push(full);
+      state.week.c.chi_gushi = state.week.okQ.length; // 按「背出的不同诗」计数
+    }
+    if (weekDone()) showPopup("🎉 本周古诗达标！", "这周 " + WEEK_GUSHI.need + " 首古诗都背出来啦，下周再来新的！", "📜", "回首页 🏠", goHome);
+    return;
+  }
+  if (!DAY_RULES[id]) return; // 自由关卡（看图写单词/词语量词等）不计数
+  const was = dayCount(id);
+  if (was >= DAY_RULES[id].need) return; // 之前已达标（防御）
+  state.daily.c[id] = was + 1;
+  if (was + 1 < DAY_RULES[id].need) return; // 未达标：静默累计，不弹窗
+  const g = DAY_STAR_GROUPS.find(gr => gr.items.some(([i])=>i===id));
+  const gDone = g && g.items.every(([i])=>dayDone(i));
+  renderDailyList();
+  if (gDone) showPopup("🎉 获得一颗星！", "「" + g.name + "」今日任务全部完成！", "⭐", "回首页 🏠", goHome);
+  else showPopup("🎉 任务完成！", "「" + lvName(id) + "」今日题量达标，去看看别的任务吧！", "🎯", "回首页 🏠", goHome);
+}
+
 function nextQ(){
   const lv = findLevel(state.subject, state.level);
+  // 本关已达标（每日/每周配额用尽）→ 回首页，不再出新题
+  if (taskLocked(lv.id)){
+    if (lv.id==='chi_gushi') showPopup("🎉 本周古诗已达标", "这周 " + WEEK_GUSHI.need + " 首都背出来啦，下周再来新的！", "📜", "回首页 🏠", goHome);
+    else showPopup("🎉 今日已达标", "「" + lvName(lv.id) + "」今天的题做完啦，明天继续！", "⭐", "回首页 🏠", goHome);
+    return;
+  }
   showQ(lv.gen(), lv);
 }
 
@@ -719,6 +871,7 @@ function goHome(){
   document.getElementById('home').style.display='block';
   document.getElementById('quizArea').style.display='none';
   document.getElementById('wrongArea').style.display='none';
+  renderDailyList();
   refreshTop();
 }
 
@@ -762,10 +915,12 @@ function confetti(n){
     setTimeout(()=>el.remove(), 3200);
   }
 }
-function showPopup(title, msg, emoji){
+function showPopup(title, msg, emoji, okLabel, onOk){
   document.getElementById('popEmoji').textContent = emoji||'🎉';
   document.getElementById('popTitle').textContent = title;
   document.getElementById('popMsg').textContent = msg;
+  const b = document.getElementById('popOk');
+  if (b){ b.textContent = okLabel || '继续闯关 ➜'; b.onclick = ()=>{ closePopup(); if (onOk) onOk(); }; }
   document.getElementById('popup').classList.add('show');
 }
 function closePopup(){
@@ -774,6 +929,7 @@ function closePopup(){
 
 // ---------- 启动 ----------
 renderHomeChips();
+renderDailyList();
 refreshTop();
 </script>
 </body>
