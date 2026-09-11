@@ -77,6 +77,23 @@
   .chip.active { background:#4338ca; color:#fff; }
   .chip:active { transform:scale(.95); }
 
+  /* ===== 星星册 ===== */
+  .starbook { display:none; }
+  .sb-big { text-align:center; padding:12px 0 4px; }
+  .sb-big .num { font-size:46px; font-weight:800; color:#f59e0b; line-height:1; }
+  .sb-big .lbl { font-size:13px; color:#6b7280; margin-top:4px; }
+  .sb-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:12px 0 6px; }
+  .sb-card { background:#f8fafc; border-radius:14px; padding:10px 4px; text-align:center; }
+  .sb-card .v { font-size:20px; font-weight:800; color:#0f766e; }
+  .sb-card .k { font-size:12px; color:#64748b; margin-top:2px; }
+  .sb-day {
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    background:#fffbeb; border:1px solid #fde68a; border-radius:12px;
+    padding:9px 12px; margin-bottom:6px; font-size:15px; font-weight:600; color:#92400e;
+  }
+  .sb-day.sb-full { background:#fef3c7; border-color:#fbbf24; }
+  .sb-day .sb-stars { white-space:nowrap; font-size:15px; letter-spacing:1px; }
+
   /* ===== 答题区 ===== */
   .quiz-area { display:none; }
   .qcard {
@@ -151,7 +168,7 @@
 
   <!-- 顶部状态 -->
   <div class="topbar">
-    <span class="star" id="starRow" title="今日任务星：每天最多 5 颗">今日 ⭐☆☆☆☆</span>
+    <span class="star" id="starRow" onclick="openStarBook()" style="cursor:pointer" title="点我看星星册：今日星 + 累计总星">今日 ⭐☆☆☆☆</span>
     <span class="combo" id="combo">🔥 连击 0</span>
     <button onclick="toggleWrong()">错题本</button>
   </div>
@@ -168,6 +185,8 @@
     <div class="panel" id="dailyPanel">
       <h2>🎯 今日任务 <span style="font-size:14px;color:#888" id="dailyStarText"></span></h2>
       <div id="dailyList"></div>
+      <button class="chip" style="width:100%;background:#fef3c7;color:#92400e;margin-top:2px"
+        onclick="openStarBook()">⭐ 星星册 · 累计 <span id="sbBtnTotal">0</span> 颗</button>
     </div>
 
     <div class="subjects">
@@ -225,6 +244,32 @@
         <button class="chip" style="background:#dcfce7;color:#15803d" onclick="restoreData()">📥 恢复数据</button>
         <button class="chip" style="background:#fee2e2;color:#b91c1c" onclick="clearWrong()">🗑️ 清空错题本</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== 星星册 ===== -->
+  <div class="starbook" id="starBook">
+    <button class="back-btn" onclick="closeStarBook()">← 返回首页</button>
+    <div class="panel">
+      <h2>⭐ 我的星星册</h2>
+      <div class="sb-big">
+        <div class="num" id="sbTotal">0</div>
+        <div class="lbl">累计获得的星星（每天最多 5 颗）</div>
+      </div>
+      <div class="sb-cards">
+        <div class="sb-card"><div class="v" id="sbWeek">0</div><div class="k">本周</div></div>
+        <div class="sb-card"><div class="v" id="sbMonth">0</div><div class="k">本月</div></div>
+        <div class="sb-card"><div class="v" id="sbFullDays">0</div><div class="k">满星天数</div></div>
+      </div>
+      <div style="text-align:center;font-size:13px;color:#6b7280;margin-top:6px" id="sbPoints"></div>
+      <div style="font-size:13px;color:#9ca3af;margin-top:8px;line-height:1.6">
+        📜 古诗「每周 2 首」是额外任务，答对不占这 5 颗星<br>
+        ⭐ 每格 = 当天 5 星打卡情况，从今天开始记录
+      </div>
+    </div>
+    <div class="panel">
+      <h2>📅 每日星星记录</h2>
+      <div id="sbList"></div>
     </div>
   </div>
 
@@ -521,14 +566,16 @@ const WEEK_GUSHI = {icon:"📜", name:"古诗", id:"chi_gushi", need:2, unit:"�
 const DAY_RULES = {};
 for (const g of DAY_STAR_GROUPS) for (const [id,need,unit] of g.items) DAY_RULES[id] = {need, unit};
 
+function dayKeyOf(d){
+  return d.getFullYear() + "-" + (d.getMonth()+1) + "-" + d.getDate();
+}
 function todayKey(){
-  const x = new Date();
-  return x.getFullYear() + "-" + (x.getMonth()+1) + "-" + x.getDate();
+  return dayKeyOf(new Date());
 }
 function weekMondayKey(){
   const x = new Date();
   x.setDate(x.getDate() - ((x.getDay()+6)%7)); // 回到本周一
-  return x.getFullYear() + "-" + (x.getMonth()+1) + "-" + x.getDate();
+  return dayKeyOf(x);
 }
 function ensureDay(){
   const k = todayKey();
@@ -557,10 +604,70 @@ function todayStars(){
 }
 function starRowText(){ return "今日 " + "⭐".repeat(todayStars()) + "☆".repeat(5-todayStars()); }
 function refreshDailyStars(){
+  recordStars();
   const el = document.getElementById('starRow');
   if (el) el.textContent = starRowText();
   const t = document.getElementById('dailyStarText');
   if (t) t.textContent = "⭐ 已得 " + todayStars() + " / 5（古诗每周 2 首另算）";
+  const b = document.getElementById('sbBtnTotal');
+  if (b) b.textContent = starTotal();
+}
+
+// ---------- 星星册：把每天的星存下来，可查累计 ----------
+function keyToDate(k){ const p = String(k).split('-'); return new Date(+p[0], (+p[1])-1, +p[2]); }
+function starLog(){ if (!state.starlog || typeof state.starlog !== 'object') state.starlog = {}; return state.starlog; }
+// 记录今天得了几颗星（只增不减，防止误清）
+function recordStars(){
+  const k = todayKey(), n = todayStars(), log = starLog();
+  if ((log[k]||0) < n){ log[k] = n; save(); }
+}
+function starTotal(){ const log = starLog(); let t = 0; for (const k in log) t += log[k]; return t; }
+function starSince(ts){ const log = starLog(); let t = 0; for (const k in log) if (keyToDate(k).getTime() >= ts) t += log[k]; return t; }
+function weekStarTotal(){ return starSince(keyToDate(weekMondayKey()).getTime()); }
+function monthStarTotal(){
+  const now = new Date(), log = starLog(); let t = 0;
+  for (const k in log){ const d = keyToDate(k); if (d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth()) t += log[k]; }
+  return t;
+}
+function fullStarDays(){ const log = starLog(); let c = 0; for (const k in log) if (log[k] >= 5) c++; return c; }
+const WD_NAME = ["日","一","二","三","四","五","六"];
+function renderStarBook(){
+  const set = (id,v)=>{ const e = document.getElementById(id); if (e) e.textContent = v; };
+  set('sbTotal', starTotal());
+  set('sbWeek', weekStarTotal());
+  set('sbMonth', monthStarTotal());
+  set('sbFullDays', fullStarDays());
+  set('sbPoints', "🎯 答题积分 " + state.stars + " 分　" + levelInfo(state.stars).name);
+  const log = starLog();
+  const list = document.getElementById('sbList');
+  if (!list) return;
+  list.innerHTML = '';
+  const base = new Date(); base.setHours(12,0,0,0);
+  let shown = 0;
+  for (let i=0;i<60;i++){
+    const d = new Date(base.getTime() - i*86400000);
+    const n = log[dayKeyOf(d)] || 0;
+    if (!n && i > 6) continue;   // 最近 7 天即使空白也显示，更早的空白跳过
+    const row = document.createElement('div');
+    row.className = 'sb-day' + (n>=5 ? ' sb-full' : '');
+    const label = (i===0 ? '今天 · ' : '') + (d.getMonth()+1) + '月' + d.getDate() + '日（周' + WD_NAME[d.getDay()] + '）';
+    row.innerHTML = '<span>' + label + '</span><span class="sb-stars">' + '⭐'.repeat(n) + '☆'.repeat(5-n) + '</span>';
+    list.appendChild(row);
+    shown++;
+  }
+  if (!shown) list.innerHTML = '<div class="empty">还没有记录～今天完成每日任务就能得 ⭐</div>';
+}
+function openStarBook(){
+  document.getElementById('home').style.display='none';
+  document.getElementById('quizArea').style.display='none';
+  document.getElementById('wrongArea').style.display='none';
+  document.getElementById('starBook').style.display='block';
+  renderStarBook();
+  window.scrollTo(0,0);
+}
+function closeStarBook(){
+  document.getElementById('starBook').style.display='none';
+  goHome();
 }
 
 // 渲染今日任务面板
@@ -602,6 +709,7 @@ let state = {
   subject:null, level:null,
   stars: 0, combo: 0, bestCombo: 0,
   wrong: [], // {q, your, ans, subject}
+  starlog: null, // 星星册：{日期"Y-M-D": 当天得星数}（recordStars 写入）
   daily: null, week: null   // 每日任务计数 {d,c:{关卡id:n}} / 古诗周计数 {w, c, okQ}（ensureDay/ensureWeek 初始化）
 };
 try {
@@ -689,6 +797,7 @@ function startLevel(subject, level){
   document.getElementById('home').style.display='none';
   document.getElementById('quizArea').style.display='block';
   document.getElementById('wrongArea').style.display='none';
+  document.getElementById('starBook').style.display='none';
   document.getElementById('feedback').textContent='';
   document.getElementById('fbTip').textContent='';
   document.getElementById('nextBtn').style.display='none';
@@ -871,6 +980,7 @@ function goHome(){
   document.getElementById('home').style.display='block';
   document.getElementById('quizArea').style.display='none';
   document.getElementById('wrongArea').style.display='none';
+  document.getElementById('starBook').style.display='none';
   renderDailyList();
   refreshTop();
 }
