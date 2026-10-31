@@ -139,6 +139,18 @@
   }
   .wrong-item .wq { font-size:16px; font-weight:700; color:#374151; }
   .wrong-item .wa { font-size:13px; color:#9ca3af; margin-top:4px; }
+  .ai-btn {
+    margin-top:8px; border:none; border-radius:10px; padding:7px 16px;
+    font-size:14px; font-weight:700; cursor:pointer;
+    background:linear-gradient(135deg,#a78bfa,#7c3aed); color:#fff;
+    box-shadow:0 2px 6px rgba(124,58,237,.25);
+  }
+  .ai-btn:disabled { opacity:.65; cursor:default; }
+  .ai-answer {
+    margin-top:8px; background:#f5f3ff; border-left:4px solid #8b5cf6;
+    border-radius:10px; padding:11px 13px; font-size:15px; line-height:1.65;
+    color:#4c1d95; display:none; white-space:pre-wrap;
+  }
 
   .empty { text-align:center; color:#9ca3af; font-size:15px; padding:30px 0; }
 
@@ -999,11 +1011,14 @@ function renderWrong(){
   const list = document.getElementById('wrongList');
   list.innerHTML='';
   if (!state.wrong.length){ list.innerHTML='<div class="empty">🎉 没有错题！你太棒了</div>'; return; }
-  for (const w of state.wrong){
+  for (let i=0;i<state.wrong.length;i++){
+    const w = state.wrong[i];
     const d = document.createElement('div');
     d.className='wrong-item';
     d.innerHTML = `<div class="wq">❌ ${escapeHtml(w.q)}</div>
-      <div class="wa">你答：${escapeHtml(w.your)}　✅ 答案：${escapeHtml(w.ans)}</div>`;
+      <div class="wa">你答：${escapeHtml(w.your)}　✅ 答案：${escapeHtml(w.ans)}</div>
+      <button class="ai-btn" onclick="askAI(${i}, this)">🤖 讲讲为什么</button>
+      <div class="ai-answer"></div>`;
     list.appendChild(d);
   }
 }
@@ -1011,6 +1026,67 @@ function clearWrong(){
   state.wrong=[]; save(); renderWrong();
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---------- AI 讲解（DeepSeek，直连无需后端）----------
+const AI_KEY_STORE = 'zz_ai_key';
+const AI_DAILY_MAX = 30;   // 每天最多讲解几题，防止孩子乱按烧钱
+function getAIKey(){ try { return localStorage.getItem(AI_KEY_STORE) || ''; } catch(e){ return ''; } }
+function askForKey(){
+  const k = prompt('第一次用 AI 讲解，请贴入家长的大模型 API Key\n\n（只保存在这台设备里，不会上传到 GitHub。申请地址：platform.deepseek.com）');
+  if (!k || !k.trim()) return '';
+  const t = k.trim();
+  try { localStorage.setItem(AI_KEY_STORE, t); } catch(e){}
+  return t;
+}
+function aiQuotaLeft(){
+  ensureDay();
+  const d = todayKey();
+  if (!state.ai || state.ai.d !== d) state.ai = { d: d, c: 0 };
+  return AI_DAILY_MAX - state.ai.c;
+}
+async function askAI(idx, btn){
+  const w = state.wrong[idx];
+  if (!w) return;
+  const box = btn.parentNode.querySelector('.ai-answer');
+  let key = getAIKey() || askForKey();
+  if (!key){ box.style.display='block'; box.textContent='⚠️ 还没有填 API Key，再点一次按钮填一下。'; return; }
+  if (aiQuotaLeft() <= 0){ box.style.display='block'; box.textContent='🌙 今天的 AI 讲解次数用完啦，明天再来找 AI 老师～'; return; }
+  btn.disabled = true;
+  const oldLabel = btn.textContent;
+  btn.textContent = '🤖 AI 老师正在想…';
+  box.style.display='block'; box.textContent='';
+  const sys = '你是一位耐心温柔的小学老师，正在教一个8岁孩子。说话口语化、亲切，用「你」，多用生活里的小例子（糖果、苹果、玩具、零花钱）。';
+  const ask = '孩子做错了这道题：\n题目：' + w.q + '\n孩子答的：' + w.your + '\n正确答案：' + w.ans
+    + '\n\n请用8岁孩子能听懂的话讲清楚为什么正确答案是这个。先举一个生活里的小例子帮他想明白，再给一句小窍门。总共不超过100字，不要分点列编号，像聊天一样说。';
+  try {
+    const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body: JSON.stringify({
+        model:'deepseek-chat',
+        messages:[{role:'system',content:sys},{role:'user',content:ask}],
+        max_tokens:220, temperature:0.8
+      })
+    });
+    if (!r.ok){
+      if (r.status===401){
+        box.textContent='⚠️ API Key 好像不对，请重新填一次。';
+        try{ localStorage.removeItem(AI_KEY_STORE); }catch(e){}
+      } else {
+        box.textContent='😅 AI 老师有点忙（'+r.status+'），等一下再点一次试试。';
+      }
+      return;
+    }
+    const data = await r.json();
+    const txt = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    box.textContent = '🧑‍🏫 ' + txt.trim();
+    state.ai.c++; save();
+  } catch(e){
+    box.textContent='😅 网络好像不通，等一下再点一次试试。';
+  } finally {
+    btn.disabled = false; btn.textContent = oldLabel;
+  }
+}
 
 // ---------- 彩带/弹窗 ----------
 function confetti(n){
