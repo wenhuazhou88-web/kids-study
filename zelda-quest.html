@@ -117,7 +117,7 @@
   <div id="overlay">
     <div class="title">⚔️ 海拉鲁小勇士</div>
     <div class="sub">加侬把三角力量打碎啦！<br>找齐 <b>3 块碎片 🔺</b>，再去北边洞窟打败他。</div>
-    <div class="keys">方向键 / WASD 走路 · <b>空格 / J</b> 挥剑 · <b>K</b> 射箭</div>
+    <div class="keys">方向键 / WASD 走路 · <b>空格 / J</b> 挥剑 · <b>K</b> 射箭（无限）</div>
     <button class="btn" id="btnStart">开始冒险</button>
   </div>
 </div>
@@ -200,7 +200,7 @@ const player = {
   dir: "down", hp: 3, maxHp: 3,
   invuln: 0, swing: 0, cd: 0, hitSet: null,
   moving: false, animT: 0,
-  hasBow: false, arrows: 0, bowCd: 0
+  hasBow: false, arrows: 0, bowCd: 0, infArrow: false
 };
 
 let shards = [];             // {x,y,taken,id}
@@ -497,7 +497,7 @@ function applySword(dt){
 function killEnemy(e){
   e.dead = true; sndSlay();
   if(Math.random() < 0.42) drops.push({ x:e.x, y:e.y, life:14, bob:Math.random()*6, type:"heart" });
-  if(Math.random() < 0.55) drops.push({ x:e.x+0.22, y:e.y+0.12, life:16, bob:Math.random()*6, type:"arrow" });
+  if(!player.infArrow && Math.random() < 0.55) drops.push({ x:e.x+0.22, y:e.y+0.12, life:16, bob:Math.random()*6, type:"arrow" });
 }
 
 function bowDeny(){
@@ -507,10 +507,10 @@ function bowDeny(){
 
 function shootBow(){
   if(state !== S.PLAY) return;
-  if(!player.hasBow || player.arrows <= 0){ bowDeny(); return; }
+  if(!player.hasBow || (!player.infArrow && player.arrows <= 0)){ bowDeny(); return; }
   if(player.bowCd > 0) return;
   player.bowCd = 0.42;
-  player.arrows -= 1;
+  if(!player.infArrow) player.arrows -= 1;
   const [dx,dy] = DIRV[player.dir];
   arrows.push({
     x: player.x + dx*0.45, y: player.y + dy*0.45,
@@ -588,10 +588,10 @@ const INTRO = [
   ["老者","这把剑给你！按 空格 或 J 挥剑，把挡路的怪物打跑。"],
   ["老者","三块碎片分别在：西南的森林 🌲、东北的湖边 🌊、东南的石山 🪨。"],
   ["老者","集齐三块，北边的洞窟石门就会打开。去吧，小勇士！"],
-  ["老者","对了！往北走两步有个【宝箱】，里面有弓——捡到后按 K 射箭（平板点 🏹）。"]
+  ["老者","对了！往北走两步有个【宝箱】，里面有弓和用不完的箭——捡到后按 K 射箭（平板点 🏹）。"]
 ];
 const HINTS = [
-  ["老者","弓已经在你手上啦，按 K 射箭（平板点 🏹）。去把三块三角力量找齐。"],
+  ["老者","弓已经在你手上啦，箭是无限的，按 K 射箭（平板点 🏹）。去把三块三角力量找齐。"],
   ["老者","西南的森林里，史莱姆一跳一跳的——站在它侧面挥剑最快。"],
   ["老者","东北湖边的蝙蝠会飞，别躲，直接冲上去砍它。"],
   ["老者","东南石山的章鱼会吐石头，走 Z 字就能躲开。"],
@@ -634,10 +634,11 @@ function updateHUD(){
   el.hearts.textContent = h;
   el.shards.textContent = "🔺 " + collected + "/3";
   el.zone.textContent = inDungeon ? "加侬的洞窟" : "海拉鲁平原";
-  el.bow.textContent = "🏹 ×" + player.arrows;
-  el.bow.classList.toggle("off", !player.hasBow || player.arrows <= 0);
+  el.bow.textContent = player.infArrow ? "🏹 ∞" : ("🏹 ×" + player.arrows);
+  const noArrow = !player.hasBow || (!player.infArrow && player.arrows <= 0);
+  el.bow.classList.toggle("off", noArrow);
   const pad = document.getElementById("pBow");
-  if(pad) pad.classList.toggle("off", !player.hasBow || player.arrows <= 0);
+  if(pad) pad.classList.toggle("off", noArrow);
 }
 
 /* ---------------- 存档 ---------------- */
@@ -645,7 +646,7 @@ function save(){
   try{
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       taken: shards.map(s=>s.taken), cleared: false,
-      hasBow: !!player.hasBow, arrows: player.arrows, ts: Date.now()
+      hasBow: !!player.hasBow, infArrow: !!player.infArrow, arrows: player.arrows, ts: Date.now()
     }));
   }catch(e){}
 }
@@ -662,6 +663,7 @@ function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
 function startGame(){
   const s = loadSave();
   player.hasBow = !!(s && s.hasBow);
+  player.infArrow = !!(s && (s.infArrow || s.hasBow));
   player.arrows = s ? (s.arrows || 0) : 0;
   player.bowCd = 0;
   setupOverworld(s ? s.taken : null);
@@ -789,7 +791,7 @@ function update(dt){
     if(d.life > 0 && Math.hypot(d.x-player.x, d.y-player.y) < 0.8){
       d.life = 0;
       if(d.type === "arrow"){
-        player.arrows += (player.hasBow ? 3 : 0);
+        if(!player.infArrow) player.arrows += (player.hasBow ? 3 : 0);
         sndPick(); updateHUD();
       }else{
         if(player.hp < player.maxHp){ player.hp++; updateHUD(); sndPick(); }
@@ -825,11 +827,12 @@ function update(dt){
     if(chest && !chest.opened && Math.hypot(chest.x-player.x, chest.y-player.y) < 0.95){
       chest.opened = true;
       player.hasBow = true;
-      player.arrows += 10;
+      player.infArrow = true;
+      player.arrows = 0;
       sndChest(); updateHUD(); save();
-      say([["宝箱","🎉 打开宝箱——里面是一把【弓】和 10 支箭！"],
-           ["老者","按 K 键（平板上点 🏹）朝你面向的方向射箭。"],
-           ["老者","箭射完了也别怕，打怪有几率掉箭，捡起来 +3 支。"]], ()=>{});
+      say([["宝箱","🎉 打开宝箱——里面是一把【弓】，箭也是用不完的！"],
+           ["老者","按 K 键（平板上点 🏹）朝你面向的方向射箭——箭无限，随便射。"],
+           ["老者","弓也能打洞窟里的大家伙，站远点射更安全。"]], ()=>{});
       return;
     }
     const gx = Math.floor(player.x), gy = Math.floor(player.y);
@@ -1424,7 +1427,7 @@ function winGame(){
 }
 function restartAll(){
   clearSave();
-  player.hasBow = false; player.arrows = 0; player.bowCd = 0;
+  player.hasBow = false; player.arrows = 0; player.bowCd = 0; player.infArrow = false;
   setupOverworld(null);
   player.hp = player.maxHp;
   hideOverlay();
