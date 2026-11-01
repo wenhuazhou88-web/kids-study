@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>海拉鲁小勇士 · 塞尔达式冒险</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{
+    background:radial-gradient(circle at 50% 0%,#1d3a2a 0%,#0d1a14 55%,#070d0a 100%);
+    font-family:"Hiragino Sans GB","PingFang SC","Microsoft YaHei",sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    min-height:100vh;padding:8px 8px 14px;
+    user-select:none;-webkit-user-select:none;overflow-x:hidden;
+    color:#eef4ff;
+  }
+  h1{
+    color:#f7cf4a;font-size:26px;margin:2px 0 6px;letter-spacing:1px;
+    text-shadow:0 3px 0 #6d4a08,0 0 22px rgba(247,207,74,.45);
+  }
+  #hud{
+    width:800px;max-width:98vw;display:flex;justify-content:space-between;align-items:center;
+    font-size:20px;font-weight:bold;color:#ffe9b8;margin-bottom:6px;padding:0 4px;
+  }
+  #hearts{letter-spacing:3px;font-size:22px;}
+  #shards{color:#8fe3c8;}
+  #zone{color:#a8bad2;font-size:16px;font-weight:normal;}
+  #wrap{position:relative;width:800px;max-width:98vw;}
+  canvas{
+    display:block;width:100%;height:auto;border-radius:14px;
+    border:3px solid #2f5f45;background:#3a8f4e;
+    box-shadow:0 0 0 3px #0d1a14,0 14px 40px rgba(0,0,0,.6);
+    touch-action:none;
+  }
+  /* ---------- 浮层 ---------- */
+  #overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;
+    background:rgba(6,16,12,.86);border-radius:14px;padding:18px;gap:8px;
+  }
+  #overlay.hidden{display:none;}
+  #overlay .title{font-size:34px;color:#f7cf4a;text-shadow:0 3px 0 #6d4a08;line-height:1.3;}
+  #overlay .sub{font-size:19px;color:#cfe3d8;line-height:1.7;}
+  #overlay .keys{font-size:16px;color:#8fb3a3;line-height:1.8;margin-top:4px;}
+  #overlay b{color:#f7cf4a;}
+  .btn{
+    margin-top:10px;padding:12px 26px;font-size:21px;font-weight:bold;border:none;border-radius:12px;
+    background:linear-gradient(#f7cf4a,#d8a318);color:#3a2600;cursor:pointer;
+    box-shadow:0 4px 0 #8a6a12;font-family:inherit;
+  }
+  .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #8a6a12;}
+  .btn.ghost{background:linear-gradient(#4a7a63,#2f5f45);color:#eaf5ef;box-shadow:0 4px 0 #1b3a2b;}
+  /* ---------- 对话框 ---------- */
+  #dialog{
+    position:absolute;left:12px;right:12px;bottom:12px;
+    background:rgba(10,22,17,.95);border:3px solid #f7cf4a;border-radius:12px;
+    padding:12px 16px 14px;font-size:19px;line-height:1.6;color:#f2f8f4;
+    box-shadow:0 8px 28px rgba(0,0,0,.55);
+  }
+  #dialog.hidden{display:none;}
+  #dialog .who{color:#f7cf4a;font-weight:bold;font-size:17px;margin-bottom:4px;}
+  #dialog .next{color:#8fb3a3;font-size:14px;text-align:right;margin-top:6px;}
+  /* ---------- 触摸控制 ---------- */
+  #touch{position:absolute;inset:0;pointer-events:none;display:none;}
+  #touch.on{display:block;}
+  .pad{
+    position:absolute;pointer-events:auto;width:58px;height:58px;border-radius:50%;
+    background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.38);
+    color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center;
+    backdrop-filter:blur(2px);font-family:inherit;
+  }
+  .pad:active{background:rgba(255,255,255,.4);}
+  #pUp{left:74px;bottom:110px;} #pDown{left:74px;bottom:26px;}
+  #pLeft{left:24px;bottom:68px;} #pRight{left:124px;bottom:68px;}
+  #pAtk{
+    right:22px;bottom:44px;width:84px;height:84px;font-size:26px;font-weight:bold;
+    background:rgba(247,207,74,.3);border-color:rgba(247,207,74,.75);
+  }
+  #tip{color:#7fa08f;font-size:14px;margin-top:8px;text-align:center;line-height:1.6;}
+  @media (max-width:820px){ h1{font-size:21px;} #hud{font-size:17px;} }
+</style>
+</head>
+<body>
+<h1>⚔️ 海拉鲁小勇士 ⚔️</h1>
+<div id="hud">
+  <span id="hearts">❤️❤️❤️</span>
+  <span id="shards">🔺 0/3</span>
+  <span id="zone">海拉鲁平原</span>
+</div>
+<div id="wrap">
+  <canvas id="game" width="800" height="560"></canvas>
+
+  <div id="touch">
+    <div class="pad" id="pUp"   data-k="up">▲</div>
+    <div class="pad" id="pDown" data-k="down">▼</div>
+    <div class="pad" id="pLeft" data-k="left">◀</div>
+    <div class="pad" id="pRight"data-k="right">▶</div>
+    <div class="pad" id="pAtk">⚔️</div>
+  </div>
+
+  <div id="dialog" class="hidden">
+    <div class="who" id="dlgWho">老者</div>
+    <div id="dlgText"></div>
+    <div class="next">▼ 按 空格 / 点一下继续</div>
+  </div>
+
+  <div id="overlay">
+    <div class="title">⚔️ 海拉鲁小勇士</div>
+    <div class="sub">加侬把三角力量打碎啦！<br>找齐 <b>3 块碎片 🔺</b>，再去北边洞窟打败他。</div>
+    <div class="keys">方向键 / WASD 走路 · <b>空格 / J</b> 挥剑</div>
+    <button class="btn" id="btnStart">开始冒险</button>
+  </div>
+</div>
+<div id="tip">拿到剑就出发 · 红心会从打倒的怪物身上掉出来</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   海拉鲁小勇士 —— 单文件塞尔达式俯视角冒险
+   ============================================================ */
+const cv = document.getElementById("game");
+const ctx = cv.getContext("2d");
+const VW = cv.width, VH = cv.height;
+const TILE = 40;
+
+const el = {
+  hearts: document.getElementById("hearts"),
+  shards: document.getElementById("shards"),
+  zone:   document.getElementById("zone"),
+  overlay:document.getElementById("overlay"),
+  dialog: document.getElementById("dialog"),
+  dlgWho: document.getElementById("dlgWho"),
+  dlgText:document.getElementById("dlgText"),
+  touch:  document.getElementById("touch"),
+  tip:    document.getElementById("tip")
+};
+
+/* ---------------- 地图数据结构 ---------------- */
+const T = { GRASS:0, PATH:1, WATER:2, TREE:3, ROCK:4, CAVE:5, HOUSE:6, FLOWER:7, WALL:8, FLOOR:9 };
+const SOLID = new Set([T.WATER, T.TREE, T.ROCK, T.HOUSE, T.WALL]);
+
+const MAP_W = 36, MAP_H = 26;
+const DUN_W = 26, DUN_H = 18;
+
+/* ---------------- 音效 ---------------- */
+let actx = null;
+function ac(){
+  if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(actx && actx.state === "suspended") actx.resume();
+  return actx;
+}
+function beep(freq, dur, type, vol, freq2){
+  const a = ac(); if(!a) return;
+  try{
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type || "square";
+    o.frequency.setValueAtTime(freq, a.currentTime);
+    if(freq2) o.frequency.exponentialRampToValueAtTime(Math.max(40,freq2), a.currentTime + dur);
+    g.gain.setValueAtTime(vol || 0.10, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(); o.stop(a.currentTime + dur + 0.02);
+  }catch(e){}
+}
+const sndSwing = () => beep(880, 0.13, "triangle", 0.07, 200);
+const sndHit   = () => beep(320, 0.10, "square", 0.10, 120);
+const sndSlay  = () => { beep(420, 0.12, "square", 0.09, 90); setTimeout(()=>beep(240,0.14,"triangle",0.07,70),70); };
+const sndHurt  = () => { beep(200, 0.28, "sawtooth", 0.12, 80); };
+const sndPick  = () => { beep(1046, 0.09, "triangle", 0.09); setTimeout(()=>beep(1568,0.13,"triangle",0.09),85); };
+const sndShard = () => { [784,988,1319,1568].forEach((f,i)=>setTimeout(()=>beep(f,0.20,"triangle",0.10),i*110)); };
+const sndOpen  = () => { [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.18,"sine",0.10),i*90)); };
+const sndWin   = () => { [523,659,784,1047,1319,1568].forEach((f,i)=>setTimeout(()=>beep(f,0.26,"triangle",0.11),i*140)); };
+const sndDead  = () => { [440,330,247,165].forEach((f,i)=>setTimeout(()=>beep(f,0.26,"sawtooth",0.11),i*170)); };
+const sndBoss  = () => { beep(110,0.55,"sawtooth",0.13,60); };
+
+/* ---------------- 游戏状态 ---------------- */
+const S = { START:"start", PLAY:"play", DIALOG:"dialog", DEAD:"dead", WIN:"win" };
+let state = S.START;
+
+let map = null;              // 当前地图（二维数组）
+let mapW = MAP_W, mapH = MAP_H;
+let inDungeon = false;
+
+const player = {
+  x: 17.5, y: 21.5,          // 格子坐标（浮点）
+  dir: "down", hp: 3, maxHp: 3,
+  invuln: 0, swing: 0, cd: 0, hitSet: null,
+  moving: false, animT: 0
+};
+
+let shards = [];             // {x,y,taken,id}
+let enemies = [];
+let drops = [];              // 红心 {x,y,life}
+let bullets = [];            // 章鱼/虫子吐的东西
+let boss = null;
+let collected = 0;
+let cam = { x:0, y:0 };
+let tGlobal = 0, shake = 0, lastT = 0;
+let caveCool = 0;
+let npcCool = 0;
+
+const SAVE_KEY = "hyrule_hero_v1";
+
+/* ---------------- 地图构建 ---------------- */
+function blank(w,h,t){
+  const g = [];
+  for(let y=0;y<h;y++){ const row = new Array(w).fill(t); g.push(row); }
+  return g;
+}
+function rect(g,x,y,w,h,t){
+  for(let j=y;j<y+h;j++) for(let i=x;i<x+w;i++){
+    if(j>=0 && j<g.length && i>=0 && i<g[0].length) g[j][i]=t;
+  }
+}
+function buildOverworld(){
+  const g = blank(MAP_W, MAP_H, T.GRASS);
+  // 边框树林
+  rect(g,0,0,MAP_W,1,T.TREE); rect(g,0,MAP_H-1,MAP_W,1,T.TREE);
+  rect(g,0,0,1,MAP_H,T.TREE); rect(g,MAP_W-1,0,1,MAP_H,T.TREE);
+  // 十字大路
+  rect(g,1,12,MAP_W-2,1,T.PATH);
+  rect(g,17,3,1,MAP_H-4,T.PATH);
+  // 湖（东北）
+  rect(g,22,3,9,6,T.WATER);
+  // 森林（西南）
+  rect(g,2,15,8,7,T.TREE);
+  // 石山（东南）
+  rect(g,27,16,7,6,T.ROCK);
+  // 老者的小屋
+  rect(g,14,5,4,3,T.HOUSE);
+  rect(g,16,8,1,1,T.PATH);
+  // 洞窟入口（正北）
+  g[2][17] = T.CAVE;
+  // 点缀花朵
+  const flowers = [[12,10],[13,11],[20,10],[21,13],[9,13],[24,14],[6,12],[30,12],[11,20],[22,20],[19,6],[13,16]];
+  for(const [fx,fy] of flowers) if(g[fy] && g[fy][fx]===T.GRASS) g[fy][fx]=T.FLOWER;
+  return g;
+}
+function buildDungeon(){
+  const g = blank(DUN_W, DUN_H, T.FLOOR);
+  rect(g,0,0,DUN_W,1,T.WALL); rect(g,0,DUN_H-1,DUN_W,1,T.WALL);
+  rect(g,0,0,1,DUN_H,T.WALL); rect(g,DUN_W-1,0,1,DUN_H,T.WALL);
+  // 柱子
+  for(const [px,py] of [[4,4],[8,4],[17,4],[21,4],[4,11],[21,11],[8,11],[17,11]]){
+    rect(g,px,py,2,2,T.WALL);
+  }
+  // 中间一堵带门的墙
+  rect(g,1,7,DUN_W-2,1,T.WALL);
+  rect(g,12,7,2,1,T.FLOOR);
+  return g;
+}
+
+/* ---------------- 通行判定 ---------------- */
+function solidAt(x, y){
+  const gx = Math.floor(x), gy = Math.floor(y);
+  if(gx < 0 || gx >= mapW || gy < 0 || gy >= mapH) return true;
+  return SOLID.has(map[gy][gx]);
+}
+function canStand(x, y, r){
+  r = r || 0.30;
+  return !solidAt(x-r,y-r) && !solidAt(x+r,y-r) && !solidAt(x-r,y+r) && !solidAt(x+r,y+r);
+}
+/** 沿某个轴移动（分轴解算，防卡角） */
+function moveEnt(e, dx, dy, r){
+  r = r || 0.30;
+  if(dx){
+    const nx = e.x + dx;
+    if(canStand(nx, e.y, r)) e.x = nx;
+    else if(canStand(nx, e.y + r*0.9, r) && !canStand(e.x, e.y + r*0.9, r)) e.y += Math.sign(dy||0.001)*Math.abs(dx)*0.9;
+  }
+  if(dy){
+    const ny = e.y + dy;
+    if(canStand(e.x, ny, r)) e.y = ny;
+  }
+}
+
+/* ---------------- 0-1 BFS：保证可到达，必要时凿一条小路 ---------------- */
+function ensureReachable(from, to){
+  const dist = [], via = [];
+  for(let y=0;y<mapH;y++){ dist.push(new Array(mapW).fill(Infinity)); via.push(new Array(mapW).fill(null)); }
+  const dq = [];
+  const sx = Math.floor(from[0]), sy = Math.floor(from[1]);
+  dist[sy][sx] = 0; dq.push([sx,sy]);
+  while(dq.length){
+    dq.sort((a,b)=>dist[a[1]][a[0]] - dist[b[1]][b[0]]);
+    const [cx,cy] = dq.shift();
+    if(cx === Math.floor(to[0]) && cy === Math.floor(to[1])) break;
+    const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+    for(const [dx,dy] of dirs){
+      const nx = cx+dx, ny = cy+dy;
+      if(nx<1||nx>=mapW-1||ny<1||ny>=mapH-1) continue;
+      const w = SOLID.has(map[ny][nx]) ? 1 : 0;
+      const nd = dist[cy][cx] + w;
+      if(nd < dist[ny][nx]){
+        dist[ny][nx] = nd; via[ny][nx] = [cx,cy];
+        dq.push([nx,ny]);
+      }
+    }
+  }
+  // 回溯，把路径上的墙凿成小路
+  let cur = [Math.floor(to[0]), Math.floor(to[1])];
+  let guard = 0;
+  while(cur && guard++ < 2000){
+    const [cx,cy] = cur;
+    if(SOLID.has(map[cy][cx]) && map[cy][cx] !== T.WALL) map[cy][cx] = T.PATH;
+    cur = via[cy][cx];
+  }
+}
+
+/* ---------------- 关卡初始化 ---------------- */
+function setupOverworld(keepShards){
+  map = buildOverworld(); mapW = MAP_W; mapH = MAP_H;
+  inDungeon = false;
+  const spots = [[6.5,18.5,"forest"],[26.5,10.5,"lake"],[30.5,19.5,"rock"]];
+  // 先给每块碎片清出一小块空地
+  for(const [sx,sy] of spots){ rect(map, Math.floor(sx)-1, Math.floor(sy)-1, 3, 3, T.GRASS); }
+  // 保证从出生点能走到每块碎片（必要时凿小路）
+  for(const [sx,sy] of spots) ensureReachable([17.5,21.5],[sx,sy]);
+  ensureReachable([17.5,21.5],[17,3]);
+  ensureReachable([17.5,21.5],[16.5,9.5]);
+
+  shards = spots.map(([x,y,id],i)=>({ x, y, id, taken: keepShards && keepShards[i] ? true : false }));
+  collected = shards.filter(s=>s.taken).length;
+
+  // 怪物
+  enemies = [];
+  const addEnemy = (type,x,y)=>{
+    let ex=x, ey=y;
+    if(!canStand(ex,ey,0.28)){
+      for(let r=1;r<=3 && !canStand(ex,ey,0.28);r++){
+        for(const [dx,dy] of [[r,0],[-r,0],[0,r],[0,-r],[r,r],[-r,-r],[r,-r],[-r,r]]) if(canStand(ex+dx,ey+dy,0.28)){ ex+=dx; ey+=dy; break; }
+      }
+    }
+    enemies.push(makeEnemy(type, ex, ey));
+  };
+  if(!shards[0].taken){ addEnemy("slime",5.5,17.5); addEnemy("slime",7.5,19.5); addEnemy("bat",4.5,19.5); }
+  if(!shards[1].taken){ addEnemy("bat",25.5,9.5); addEnemy("slide",27.5,11.5); addEnemy("slime",24.5,11.5); }
+  if(!shards[2].taken){ addEnemy("octo",28.5,18.5); addEnemy("octo",31.5,20.5); addEnemy("slime",29.5,16.5); }
+  // 野外零散怪
+  addEnemy("slime",12,14); addEnemy("bat",21,7); addEnemy("slime",10,6); addEnemy("bat",31,10);
+
+  enemies.forEach(e=>{ if(e.type==="slide") e.type="bat"; });
+
+  drops = []; bullets = []; boss = null;
+  player.x = 17.5; player.y = 21.5; player.dir = "down";
+  player.invuln = 0; player.swing = 0; player.cd = 0;
+  updateHUD();
+}
+
+function setupDungeon(){
+  map = buildDungeon(); mapW = DUN_W; mapH = DUN_H;
+  inDungeon = true;
+  enemies = []; drops = []; bullets = [];
+  player.x = 13; player.y = 15; player.dir = "up";
+  player.hp = player.maxHp; player.invuln = 1.2;
+  boss = { x:13, y:3, hp:10, maxHp:10, t:0, hurt:0, spitCd:2, phase:1, r:0.85 };
+  updateHUD();
+}
+
+/* ---------------- 怪物 ---------------- */
+function makeEnemy(type, x, y){
+  const base = { x, y, type, t:Math.random()*6, hurt:0, hp:1, wander:Math.random()*6, vx:0, vy:0, spitCd:1.5+Math.random() };
+  if(type === "slime"){ base.hp = 2; base.speed = 1.5; base.r = 0.34; }
+  if(type === "bat"){   base.hp = 1; base.speed = 2.0; base.r = 0.32; }
+  if(type === "octo"){  base.hp = 2; base.speed = 0;   base.r = 0.36; }
+  return base;
+}
+
+function updateEnemies(dt){
+  for(const e of enemies){
+    e.t += dt;
+    if(e.hurt > 0) e.hurt -= dt;
+
+    const dxp = player.x - e.x, dyp = player.y - e.y;
+    const dist = Math.hypot(dxp, dyp);
+
+    if(e.type === "bat"){
+      // 会飞，无视地形；靠太近就追
+      if(dist < 7){
+        e.x += (dxp/dist) * e.speed * dt;
+        e.y += (dyp/dist) * e.speed * dt;
+      }else{
+        e.wander += dt;
+        e.x += Math.cos(e.wander*1.3) * 0.7 * dt;
+        e.y += Math.sin(e.wander*1.1) * 0.7 * dt;
+      }
+      e.x = Math.max(1.2, Math.min(mapW-1.2, e.x));
+      e.y = Math.max(1.2, Math.min(mapH-1.2, e.y));
+    }
+    else if(e.type === "slime"){
+      if(dist < 8){
+        const nx = dxp/dist, ny = dyp/dist;
+        moveEnt(e, nx*e.speed*dt, ny*e.speed*dt, e.r);
+      }else{
+        e.wander += dt;
+        moveEnt(e, Math.cos(e.wander)*0.8*dt, Math.sin(e.wander*1.4)*0.8*dt, e.r);
+      }
+    }
+    else if(e.type === "octo"){
+      e.spitCd -= dt;
+      if(dist < 7.5 && e.spitCd <= 0){
+        e.spitCd = 2.4;
+        const nx = dxp/dist, ny = dyp/dist;
+        bullets.push({ x:e.x, y:e.y, vx:nx*3.4, vy:ny*3.4, life:3.2, from:"enemy" });
+        sndHit();
+      }
+    }
+  }
+}
+
+function updateBoss(dt){
+  if(!boss || boss.hp <= 0) return;
+  boss.t += dt;
+  if(boss.hurt > 0) boss.hurt -= dt;
+  const dxp = player.x - boss.x, dyp = player.y - boss.y;
+  const dist = Math.hypot(dxp, dyp) || 1;
+  const speed = boss.phase === 1 ? 1.3 : boss.phase === 2 ? 1.9 : 2.4;
+  // 慢慢追，但会间歇冲刺
+  const charge = (Math.sin(boss.t * 1.6) > 0.75) ? 2.0 : 1.0;
+  if(dist > 0.9){
+    moveEnt(boss, dxp/dist*speed*charge*dt, dyp/dist*speed*charge*dt, 0.55);
+  }
+  boss.spitCd -= dt;
+  if(boss.spitCd <= 0 && dist < 9){
+    boss.spitCd = boss.phase === 3 ? 1.5 : 2.4;
+    const n = boss.phase === 3 ? 5 : 3;
+    for(let i=0;i<n;i++){
+      const a = Math.atan2(dyp,dxp) + (i - (n-1)/2) * 0.36;
+      bullets.push({ x:boss.x, y:boss.y, vx:Math.cos(a)*3.0, vy:Math.sin(a)*3.0, life:3.5, from:"enemy" });
+    }
+    sndBoss();
+  }
+}
+
+/* ---------------- 攻击 ---------------- */
+const DIRV = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] };
+function attack(){
+  if(state !== S.PLAY) return;
+  if(player.cd > 0) return;
+  player.cd = 0.34;
+  player.swing = 0.22;
+  player.hitSet = new Set();
+  sndSwing();
+}
+function applySword(dt){
+  if(player.swing <= 0) return;
+  const [dx,dy] = DIRV[player.dir];
+  const cx = player.x + dx*0.62, cy = player.y + dy*0.62;
+  const hw = 0.62, hhx = dx ? 0.72 : 0.62, hhy = dy ? 0.72 : 0.62;
+
+  for(const e of enemies){
+    if(player.hitSet.has(e)) continue;
+    if(Math.abs(e.x-cx) < hw+hhx*0.4 && Math.abs(e.y-cy) < hw+hhy*0.4){
+      player.hitSet.add(e);
+      e.hp -= 1; e.hurt = 0.16;
+      sndHit();
+      const kx = e.x - player.x, ky = e.y - player.y;
+      const kl = Math.hypot(kx,ky) || 1;
+      if(e.type !== "octo"){ e.x += kx/kl*0.25; e.y += ky/kl*0.25; }
+      shake = Math.max(shake, 4);
+      if(e.hp <= 0){
+        e.dead = true; sndSlay();
+        if(Math.random() < 0.42) drops.push({ x:e.x, y:e.y, life:14, bob:Math.random()*6 });
+      }
+    }
+  }
+  if(boss && boss.hp > 0 && !player.hitSet.has(boss)){
+    if(Math.abs(boss.x-cx) < 0.62+0.8 && Math.abs(boss.y-cy) < 0.62+0.8){
+      player.hitSet.add(boss);
+      boss.hp -= 1; boss.hurt = 0.18;
+      sndHit(); shake = Math.max(shake, 6);
+      const kx = boss.x-player.x, ky = boss.y-player.y, kl = Math.hypot(kx,ky)||1;
+      boss.x += kx/kl*0.35; boss.y += ky/kl*0.35;
+      boss.phase = boss.hp > 6 ? 1 : boss.hp > 3 ? 2 : 3;
+      if(boss.hp <= 0) { sndWin(); setTimeout(()=>winGame(), 500); }
+    }
+  }
+  enemies = enemies.filter(e=>!e.dead);
+}
+
+/* ---------------- 伤害玩家 ---------------- */
+function hurtPlayer(){
+  if(player.invuln > 0 || state !== S.PLAY) return;
+  player.hp -= 1;
+  player.invuln = 1.4;
+  shake = 10;
+  sndHurt();
+  updateHUD();
+  if(player.hp <= 0){
+    state = S.DEAD;
+    sndDead();
+    showOverlay(
+      '<div class="title">💫 你晕倒了……</div>' +
+      '<div class="sub">别怕！小精灵把你救了起来。<br>再试一次，绕着怪物转就不会被围住。</div>' +
+      '<button class="btn" id="btnAgain">再来一次</button>'
+    );
+    const b = document.getElementById("btnAgain");
+    if(b) b.onclick = ()=>respawn();
+  }
+}
+
+function respawn(){
+  const had = shards.map(s=>s.taken);
+  if(inDungeon){ setupDungeon(); player.hp = player.maxHp; }
+  else { setupOverworld(had); player.hp = player.maxHp; }
+  hideOverlay();
+  state = S.PLAY;
+  lastT = performance.now();
+}
+
+/* ---------------- 对话 ---------------- */
+let dlg = null;
+const INTRO = [
+  ["老者","林克……你终于醒啦！加侬把三角力量打碎了，三块碎片散落在海拉鲁。"],
+  ["老者","这把剑给你！按 空格 或 J 挥剑，把挡路的怪物打跑。"],
+  ["老者","三块碎片分别在：西南的森林 🌲、东北的湖边 🌊、东南的石山 🪨。"],
+  ["老者","集齐三块，北边的洞窟石门就会打开。去吧，小勇士！"]
+];
+const HINTS = [
+  ["老者","宝箱里没有东西啦，去把三块三角力量找齐。"],
+  ["老者","西南的森林里，史莱姆一跳一跳的——站在它侧面挥剑最快。"],
+  ["老者","东北湖边的蝙蝠会飞，别躲，直接冲上去砍它。"],
+  ["老者","东南石山的章鱼会吐石头，走 Z 字就能躲开。"],
+  ["老者","已经集齐三块了！北边洞窟的石门打开了，加侬就在里面。"]
+];
+function say(lines, cb){
+  dlg = { lines, i:0, cb };
+  state = S.DIALOG;
+  el.dialog.classList.remove("hidden");
+  renderDlg();
+}
+function renderDlg(){
+  el.dlgWho.textContent = dlg.lines[dlg.i][0];
+  el.dlgText.textContent = dlg.lines[dlg.i][1];
+}
+function nextDlg(){
+  if(!dlg) return;
+  dlg.i++;
+  if(dlg.i >= dlg.lines.length){
+    const cb = dlg.cb;
+    el.dialog.classList.add("hidden");
+    dlg = null;
+    state = S.PLAY;
+    lastT = performance.now();
+    if(cb) cb();
+  }else renderDlg();
+}
+
+/* ---------------- 浮层 ---------------- */
+function showOverlay(html){
+  el.overlay.innerHTML = html;
+  el.overlay.classList.remove("hidden");
+}
+function hideOverlay(){ el.overlay.classList.add("hidden"); }
+
+/* ---------------- HUD ---------------- */
+function updateHUD(){
+  let h = "";
+  for(let i=0;i<player.maxHp;i++) h += i < player.hp ? "❤️" : "🖤";
+  el.hearts.textContent = h;
+  el.shards.textContent = "🔺 " + collected + "/3";
+  el.zone.textContent = inDungeon ? "加侬的洞窟" : "海拉鲁平原";
+}
+
+/* ---------------- 存档 ---------------- */
+function save(){
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      taken: shards.map(s=>s.taken), cleared: false, ts: Date.now()
+    }));
+  }catch(e){}
+}
+function loadSave(){
+  try{
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
+    if(s && s.taken && s.taken.filter(Boolean).length > 0 && !s.cleared) return s;
+  }catch(e){}
+  return null;
+}
+function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
+
+/* ---------------- 开始 ---------------- */
+function startGame(){
+  const s = loadSave();
+  setupOverworld(s ? s.taken : null);
+  player.hp = player.maxHp;
+  hideOverlay();
+  el.dialog.classList.add("hidden");
+  dlg = null;
+  state = S.PLAY;
+  lastT = performance.now();
+  if(!s){
+    say(INTRO.map(x=>x));
+  }else{
+    say([["老者","欢迎回来！你已经找到 " + collected + "/3 块三角力量，接着去找吧。"]], ()=>{});
+  }
+}
+
+/* ---------------- 输入 ---------------- */
+const keys = {};
+function keyName(e){
+  const k = e.key.toLowerCase();
+  if(k === "arrowup" || k === "w") return "up";
+  if(k === "arrowdown" || k === "s") return "down";
+  if(k === "arrowleft" || k === "a") return "left";
+  if(k === "arrowright" || k === "d") return "right";
+  if(k === " ") return "space";
+  if(k === "j" || k === "enter") return "atk";
+  return null;
+}
+document.addEventListener("keydown", e=>{
+  const k = keyName(e);
+  if(k) e.preventDefault();
+  if(!k) return;
+  keys[k] = true;
+  if(state === S.START && (k === "space" || k === "atk")){ startGame(); return; }
+  if(state === S.DIALOG && (k === "space" || k === "atk")){ nextDlg(); return; }
+  if(state === S.DEAD && (k === "space" || k === "atk")){ respawn(); return; }
+  if(state === S.WIN && (k === "space" || k === "atk")){ restartAll(); return; }
+  if(state === S.PLAY && k === "atk") attack();
+});
+document.addEventListener("keyup", e=>{
+  const k = keyName(e);
+  if(k) keys[k] = false;
+});
+cv.addEventListener("pointerdown", ()=>{
+  if(state === S.DIALOG) nextDlg();
+  else if(state === S.PLAY) attack();
+  cv.focus();
+});
+// 触摸控制
+if("ontouchstart" in window || navigator.maxTouchPoints > 0) el.touch.classList.add("on");
+document.querySelectorAll("#touch .pad[data-k]").forEach(p=>{
+  const k = p.dataset.k;
+  const on = e=>{ e.preventDefault(); keys[k] = true; };
+  const off = e=>{ e.preventDefault(); keys[k] = false; };
+  p.addEventListener("touchstart", on, {passive:false});
+  p.addEventListener("touchend", off);
+  p.addEventListener("touchcancel", off);
+  p.addEventListener("mousedown", on);
+  p.addEventListener("mouseup", off);
+  p.addEventListener("mouseleave", off);
+});
+document.getElementById("pAtk").addEventListener("touchstart", e=>{ e.preventDefault(); if(state===S.DIALOG) nextDlg(); else attack(); }, {passive:false});
+document.getElementById("pAtk").addEventListener("mousedown", e=>{ e.preventDefault(); if(state===S.DIALOG) nextDlg(); else attack(); });
+
+/* ---------------- 主循环 ---------------- */
+function update(dt){
+  tGlobal += dt;
+  player.cd = Math.max(0, player.cd - dt);
+  player.invuln = Math.max(0, player.invuln - dt);
+  if(player.swing > 0){
+    player.swing -= dt;
+    applySword(dt);
+  }
+  shake = Math.max(0, shake - dt*26);
+
+  if(state !== S.PLAY) return;
+
+  // 移动
+  let dx = 0, dy = 0;
+  if(keys.up) dy -= 1;
+  if(keys.down) dy += 1;
+  if(keys.left) dx -= 1;
+  if(keys.right) dx += 1;
+  player.moving = !!(dx || dy);
+  if(dx && dy){ dx *= 0.7071; dy *= 0.7071; }
+  if(dx || dy){
+    if(Math.abs(dx) > Math.abs(dy)) player.dir = dx > 0 ? "right" : "left";
+    else player.dir = dy > 0 ? "down" : "up";
+    moveEnt(player, dx*4.4*dt, dy*4.4*dt, 0.30);
+    player.animT += dt;
+  }
+
+  updateEnemies(dt);
+  if(inDungeon) updateBoss(dt);
+
+  // 子弹
+  for(const b of bullets){
+    b.x += b.vx*dt; b.y += b.vy*dt; b.life -= dt;
+    if(Math.hypot(b.x-player.x, b.y-player.y) < 0.55) { b.life = 0; hurtPlayer(); }
+    if(solidAt(b.x,b.y)) b.life = 0;
+  }
+  bullets = bullets.filter(b=>b.life > 0);
+
+  // 怪物撞玩家
+  for(const e of enemies){
+    if(Math.hypot(e.x-player.x, e.y-player.y) < e.r + 0.42){
+      hurtPlayer();
+      const kx = player.x-e.x, ky = player.y-e.y, kl = Math.hypot(kx,ky)||1;
+      moveEnt(player, kx/kl*0.35, ky/kl*0.35, 0.30);
+    }
+  }
+  if(boss && boss.hp > 0 && Math.hypot(boss.x-player.x, boss.y-player.y) < boss.r + 0.42) hurtPlayer();
+
+  // 掉落红心
+  for(const d of drops){
+    d.life -= dt;
+    if(d.life > 0 && Math.hypot(d.x-player.x, d.y-player.y) < 0.8){
+      d.life = 0;
+      if(player.hp < player.maxHp){ player.hp++; updateHUD(); sndPick(); }
+      else sndPick();
+    }
+  }
+  drops = drops.filter(d=>d.life > 0);
+
+  // 碎片
+  for(let i=0;i<shards.length;i++){
+    const s = shards[i];
+    if(s.taken) continue;
+    if(Math.hypot(s.x-player.x, s.y-player.y) < 0.85){
+      s.taken = true; collected++;
+      sndShard(); updateHUD(); save();
+      if(collected >= 3){
+        say([["三角力量","三块碎片合体了！金光闪闪 ✨"],
+             ["老者","北边洞窟的石门打开了——加侬就在里面！"]], ()=>{
+          sndOpen();
+        });
+      }else{
+        say([["三角力量","拿到第 " + collected + " 块三角力量碎片！还剩 " + (3-collected) + " 块。"]], ()=>{});
+      }
+    }
+  }
+
+  // 洞窟 / NPC 触发
+  caveCool = Math.max(0, caveCool - dt);
+  npcCool = Math.max(0, npcCool - dt);
+  if(!inDungeon){
+    const gx = Math.floor(player.x), gy = Math.floor(player.y);
+    if(map[gy] && map[gy][gx] === T.CAVE && caveCool <= 0){
+      caveCool = 1.5;
+      if(collected >= 3){
+        sndOpen();
+        setupDungeon();
+        say([["加侬","呵呵……小不点，你竟敢闯进我的洞窟！"]], ()=>{});
+      }else{
+        say([["石门","石门纹丝不动……还差 " + (3-collected) + " 块三角力量。"]], ()=>{});
+      }
+    }
+    // 老者
+    if(Math.hypot(16.5-player.x, 9.5-player.y) < 1.15 && npcCool <= 0){
+      npcCool = 6;
+      const idx = collected >= 3 ? 4 : Math.min(4, collected + 1);
+      say([HINTS[idx]], ()=>{});
+    }
+  }
+}
+
+/* ---------------- 绘制 ---------------- */
+function hash(x,y){ return ((x*73856093) ^ (y*19349663)) >>> 0; }
+
+function drawTile(t, px, py, gx, gy){
+  switch(t){
+    case T.GRASS: {
+      ctx.fillStyle = "#3a8f4e";
+      ctx.fillRect(px, py, TILE, TILE);
+      const h = hash(gx,gy) % 6;
+      ctx.fillStyle = "#4aa562";
+      for(let i=0;i<3;i++){
+        const ox = ((hash(gx+i,gy)>>3) % 30) + 5;
+        const oy = ((hash(gx,gy+i)>>5) % 30) + 5;
+        ctx.fillRect(px+ox, py+oy, 3, 6);
+      }
+      if(h === 0){ ctx.fillStyle = "#57b96f"; ctx.beginPath(); ctx.arc(px+20,py+22,7,0,7); ctx.fill(); }
+      break;
+    }
+    case T.FLOWER: {
+      ctx.fillStyle = "#3a8f4e"; ctx.fillRect(px,py,TILE,TILE);
+      const cols = ["#ffd93d","#ff8fb1","#c084fc","#fff"];
+      const c = cols[hash(gx,gy) % 4];
+      ctx.fillStyle = "#3f9a52"; ctx.fillRect(px+19, py+22, 2, 12);
+      ctx.fillStyle = c;
+      for(let i=0;i<5;i++){
+        const a = i/5*Math.PI*2;
+        ctx.beginPath(); ctx.arc(px+20+Math.cos(a)*6, py+20+Math.sin(a)*6, 4, 0, 7); ctx.fill();
+      }
+      ctx.fillStyle = "#f7cf4a"; ctx.beginPath(); ctx.arc(px+20,py+20,3.4,0,7); ctx.fill();
+      break;
+    }
+    case T.PATH: {
+      ctx.fillStyle = "#c9a468";
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = "#b8945a";
+      for(let i=0;i<3;i++){
+        const ox = (hash(gx*3+i,gy) % 32)+4, oy = (hash(gx,gy*3+i) % 32)+4;
+        ctx.beginPath(); ctx.arc(px+ox, py+oy, 2, 0, 7); ctx.fill();
+      }
+      break;
+    }
+    case T.WATER: {
+      ctx.fillStyle = "#2f6fb0"; ctx.fillRect(px, py, TILE, TILE);
+      ctx.strokeStyle = "rgba(150,210,255,.55)"; ctx.lineWidth = 2;
+      const off = Math.sin(tGlobal*1.6 + gx*0.6 + gy*0.4) * 4;
+      ctx.beginPath();
+      ctx.moveTo(px+6, py+14+off); ctx.quadraticCurveTo(px+20, py+8+off, px+34, py+14+off);
+      ctx.moveTo(px+6, py+29+off); ctx.quadraticCurveTo(px+20, py+23+off, px+34, py+29+off);
+      ctx.stroke();
+      if((Math.floor(tGlobal*1.5)+gx+gy) % 11 === 0){
+        ctx.fillStyle = "rgba(255,255,255,.55)";
+        ctx.beginPath(); ctx.arc(px+22, py+20, 2.5, 0, 7); ctx.fill();
+      }
+      break;
+    }
+    case T.TREE: {
+      ctx.fillStyle = "#3a8f4e"; ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = "rgba(0,0,0,.16)";
+      ctx.beginPath(); ctx.ellipse(px+20, py+34, 13, 5, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = "#7a5230"; ctx.fillRect(px+17, py+22, 6, 12);
+      const sway = Math.sin(tGlobal*1.2 + gx*0.9) * 1.5;
+      ctx.fillStyle = "#2f7d43";
+      ctx.beginPath(); ctx.arc(px+20+sway, py+16, 15, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(px+11+sway, py+22, 10, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(px+29+sway, py+22, 10, 0, 7); ctx.fill();
+      ctx.fillStyle = "#3f9a52";
+      ctx.beginPath(); ctx.arc(px+17+sway, py+12, 9, 0, 7); ctx.fill();
+      break;
+    }
+    case T.ROCK: {
+      ctx.fillStyle = "#3a8f4e"; ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = "#8b8f96";
+      ctx.beginPath();
+      ctx.moveTo(px+6, py+32); ctx.lineTo(px+10, py+14); ctx.lineTo(px+22, py+7);
+      ctx.lineTo(px+34, py+16); ctx.lineTo(px+33, py+32); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#a9adb4";
+      ctx.beginPath();
+      ctx.moveTo(px+10, py+14); ctx.lineTo(px+22, py+7); ctx.lineTo(px+24, py+16); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "#6d7178"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(px+14, py+26); ctx.lineTo(px+27, py+22); ctx.stroke();
+      break;
+    }
+    case T.WALL: {
+      ctx.fillStyle = "#4a4458"; ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = "#5d5670"; ctx.fillRect(px+3, py+3, TILE-6, TILE-6);
+      ctx.fillStyle = "#3a3446";
+      ctx.fillRect(px+3, py+TILE/2-1, TILE-6, 2);
+      ctx.fillRect(px+TILE/2-1, py+3, 2, TILE/2-1);
+      break;
+    }
+    case T.FLOOR: {
+      ctx.fillStyle = ((gx+gy)%2===0) ? "#3c3550" : "#423a58";
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.strokeStyle = "rgba(0,0,0,.16)"; ctx.lineWidth = 1;
+      ctx.strokeRect(px+.5, py+.5, TILE-1, TILE-1);
+      break;
+    }
+    case T.HOUSE: {
+      ctx.fillStyle = "#3a8f4e"; ctx.fillRect(px, py, TILE, TILE);
+      break;
+    }
+    case T.CAVE: {
+      ctx.fillStyle = "#3a8f4e"; ctx.fillRect(px, py, TILE, TILE);
+      break;
+    }
+  }
+}
+
+function drawHouse(){
+  const px = 14*TILE - cam.x, py = 5*TILE - cam.y;
+  const w = 4*TILE, h = 3*TILE;
+  // 墙
+  ctx.fillStyle = "#d9c39a"; ctx.fillRect(px+6, py+34, w-12, h-40);
+  ctx.strokeStyle = "#b39f78"; ctx.lineWidth = 2; ctx.strokeRect(px+6, py+34, w-12, h-40);
+  // 屋顶
+  ctx.fillStyle = "#a8503c";
+  ctx.beginPath();
+  ctx.moveTo(px-2, py+40); ctx.lineTo(px+w/2, py+2); ctx.lineTo(px+w+2, py+40); ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#8d3f2e";
+  ctx.beginPath();
+  ctx.moveTo(px-2, py+40); ctx.lineTo(px+w/2, py+2); ctx.lineTo(px+w/2, py+40); ctx.closePath(); ctx.fill();
+  // 门和窗
+  ctx.fillStyle = "#6b4423"; ctx.fillRect(px+w/2-13, py+h-38, 26, 38);
+  ctx.fillStyle = "#f7cf4a"; ctx.beginPath(); ctx.arc(px+w/2+7, py+h-18, 2.4, 0, 7); ctx.fill();
+  ctx.fillStyle = "#8fd3f4"; ctx.fillRect(px+18, py+50, 20, 18);
+  ctx.fillRect(px+w-38, py+50, 20, 18);
+  ctx.strokeStyle = "#6b4423"; ctx.lineWidth = 2;
+  ctx.strokeRect(px+18, py+50, 20, 18);
+  ctx.strokeRect(px+w-38, py+50, 20, 18);
+}
+
+function drawCave(){
+  const px = 17*TILE - cam.x, py = 2*TILE - cam.y;
+  const open = collected >= 3;
+  // 山体
+  ctx.fillStyle = "#7c7160";
+  ctx.beginPath();
+  ctx.moveTo(px-16, py+TILE+8); ctx.lineTo(px+TILE/2, py-18);
+  ctx.lineTo(px+TILE+16, py+TILE+8); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#948874";
+  ctx.beginPath();
+  ctx.moveTo(px-16, py+TILE+8); ctx.lineTo(px+TILE/2, py-18);
+  ctx.lineTo(px+TILE/2, py+TILE+8); ctx.closePath(); ctx.fill();
+  // 洞口
+  ctx.fillStyle = open ? "#20182e" : "#3b3450";
+  ctx.beginPath();
+  ctx.moveTo(px+8, py+TILE+6);
+  ctx.quadraticCurveTo(px+20, py-2, px+32, py+TILE+6);
+  ctx.closePath(); ctx.fill();
+  if(open){
+    const g = 0.5 + 0.5*Math.sin(tGlobal*4);
+    ctx.fillStyle = "rgba(247,207,74," + (0.22 + g*0.3) + ")";
+    ctx.beginPath(); ctx.arc(px+20, py+24, 26, 0, 7); ctx.fill();
+    ctx.fillStyle = "#f7cf4a"; ctx.font = "bold 15px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("OPEN", px+20, py+TILE+26);
+  }else{
+    // 石门
+    ctx.fillStyle = "#5a5270";
+    ctx.fillRect(px+10, py+12, 20, 30);
+    ctx.strokeStyle = "#8b8f96"; ctx.lineWidth = 2;
+    ctx.strokeRect(px+10, py+12, 20, 30);
+    ctx.fillStyle = "#f7cf4a"; ctx.font = "bold 13px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("🔒", px+20, py+32);
+  }
+}
+
+function drawShard(s){
+  const px = s.x*TILE - cam.x, py = s.y*TILE - cam.y;
+  const bob = Math.sin(tGlobal*3 + s.x)*4;
+  ctx.save();
+  ctx.shadowColor = "#f7cf4a"; ctx.shadowBlur = 18;
+  ctx.fillStyle = "rgba(247,207,74,.30)";
+  ctx.beginPath(); ctx.arc(px, py+bob, 20, 0, 7); ctx.fill();
+  ctx.restore();
+  // 三角碎片
+  ctx.fillStyle = "#ffd93d";
+  ctx.beginPath();
+  ctx.moveTo(px, py-15+bob); ctx.lineTo(px+14, py+12+bob); ctx.lineTo(px-14, py+12+bob);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "#fff6c8"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.font = "bold 11px sans-serif";
+  ctx.textAlign = "center"; ctx.fillText("✦", px, py+6+bob);
+}
+
+function drawHeartShape(px, py, s){
+  ctx.save(); ctx.translate(px,py); ctx.scale(s,s);
+  ctx.fillStyle = "#ff5470";
+  ctx.beginPath();
+  ctx.moveTo(0, 4);
+  ctx.bezierCurveTo(-9,-4,-6,-12,0,-7);
+  ctx.bezierCurveTo(6,-12,9,-4,0,4);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawPlayer(){
+  const px = player.x*TILE - cam.x, py = player.y*TILE - cam.y;
+  const blinkHide = player.invuln > 0 && Math.floor(tGlobal*14) % 2 === 0;
+  const walk = player.moving ? Math.sin(player.animT*13)*2 : 0;
+  const face = player.dir;
+
+  ctx.save();
+  ctx.globalAlpha = blinkHide ? 0.35 : 1;
+
+  // 影子
+  ctx.fillStyle = "rgba(0,0,0,.25)";
+  ctx.beginPath(); ctx.ellipse(px, py+15, 12, 5, 0, 0, 7); ctx.fill();
+
+  const by = py + walk;
+  // 腿
+  ctx.fillStyle = "#7a5230";
+  ctx.fillRect(px-7, by+7, 5, 8);
+  ctx.fillRect(px+2, by+7, 5, 8);
+  // 身体（绿外衣）
+  ctx.fillStyle = "#2f9e54";
+  ctx.beginPath();
+  ctx.roundRect ? ctx.roundRect(px-9, by-5, 18, 15, 4) : ctx.rect(px-9, by-5, 18, 15);
+  ctx.fill();
+  ctx.fillStyle = "#1f7a3f";
+  ctx.fillRect(px-9, by+5, 18, 4);
+  // 腰带
+  ctx.fillStyle = "#c9a468"; ctx.fillRect(px-9, by+4, 18, 2.5);
+  // 头
+  ctx.fillStyle = "#ffd9a0";
+  ctx.beginPath(); ctx.arc(px, by-10, 8.5, 0, 7); ctx.fill();
+  // 帽子（绿尖帽，朝向决定歪的方向）
+  ctx.fillStyle = "#2f9e54";
+  ctx.beginPath(); ctx.arc(px, by-13, 9, Math.PI, 0); ctx.fill();
+  ctx.beginPath();
+  const tipx = face === "left" ? px-14 : face === "right" ? px+14 : px + 9;
+  const tipy = face === "up" ? by-24 : by-16;
+  ctx.moveTo(px-9, by-13); ctx.lineTo(tipx, tipy); ctx.lineTo(px+9, by-13);
+  ctx.closePath(); ctx.fill();
+  // 眼睛
+  if(face !== "up"){
+    ctx.fillStyle = "#2b2118";
+    const ex = face === "left" ? -3.5 : face === "right" ? 1.5 : 0;
+    ctx.beginPath(); ctx.arc(px-3+ex, by-8, 1.7, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(px+3+ex, by-8, 1.7, 0, 7); ctx.fill();
+  }
+  // 剑
+  const [dx,dy] = DIRV[face];
+  if(player.swing > 0){
+    // 挥剑弧光
+    const prog = 1 - player.swing/0.22;
+    const baseA = Math.atan2(dy,dx);
+    const a0 = baseA - 1.35 + prog*2.7;
+    ctx.strokeStyle = "rgba(255,255,255,.95)";
+    ctx.lineWidth = 6; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.arc(px, by-2, 26, a0-0.55, a0+0.55); ctx.stroke();
+    ctx.strokeStyle = "rgba(247,207,74,.8)"; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(px, by-2, 30, a0-0.5, a0+0.5); ctx.stroke();
+    // 剑身
+    ctx.save();
+    ctx.translate(px, by-2); ctx.rotate(a0);
+    ctx.fillStyle = "#e8f2ff"; ctx.fillRect(8, -2, 24, 4);
+    ctx.fillStyle = "#c9a468"; ctx.fillRect(4, -4, 5, 8);
+    ctx.restore();
+  }else{
+    // 收剑状态：背后一把小剑
+    ctx.save();
+    ctx.translate(px - dx*4, by - 2 - dy*3);
+    ctx.fillStyle = "#dfeaf7";
+    ctx.fillRect(-1.5, -12, 3, 16);
+    ctx.fillStyle = "#c9a468"; ctx.fillRect(-4, 2, 8, 2.5);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawEnemy(e){
+  const px = e.x*TILE - cam.x, py = e.y*TILE - cam.y;
+  const flash = e.hurt > 0;
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,.22)";
+  ctx.beginPath(); ctx.ellipse(px, py+12, 11, 4.5, 0, 0, 7); ctx.fill();
+
+  if(e.type === "slime"){
+    const sq = Math.abs(Math.sin(e.t*3.4));
+    const w = 15 + sq*3, h = 17 - sq*4;
+    ctx.fillStyle = flash ? "#ffffff" : "#5ad67a";
+    ctx.beginPath(); ctx.ellipse(px, py+13-h/2*0.2, w, h, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = flash ? "#ffffff" : "#3fae5c";
+    ctx.beginPath(); ctx.ellipse(px, py+10, w*0.9, h*0.55, 0, 0, Math.PI); ctx.fill();
+    ctx.fillStyle = "#1c2a1f";
+    ctx.beginPath(); ctx.arc(px-5, py+2, 2.4, 0, 7); ctx.arc(px+5, py+2, 2.4, 0, 7); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(px-4.2, py+1.2, .9, 0, 7); ctx.arc(px+5.8, py+1.2, .9, 0, 7); ctx.fill();
+  }
+  else if(e.type === "bat"){
+    const flap = Math.sin(e.t*13);
+    ctx.fillStyle = flash ? "#ffffff" : "#8a5cc4";
+    // 翅膀
+    ctx.beginPath();
+    ctx.moveTo(px, py); ctx.lineTo(px-19, py-8+flap*7); ctx.lineTo(px-12, py+2); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(px, py); ctx.lineTo(px+19, py-8-flap*7); ctx.lineTo(px+12, py+2); ctx.closePath(); ctx.fill();
+    // 身体
+    ctx.beginPath(); ctx.ellipse(px, py, 8, 9, 0, 0, 7); ctx.fill();
+    // 耳朵
+    ctx.beginPath();
+    ctx.moveTo(px-6, py-6); ctx.lineTo(px-7, py-14); ctx.lineTo(px-1, py-8);
+    ctx.moveTo(px+6, py-6); ctx.lineTo(px+7, py-14); ctx.lineTo(px+1, py-8);
+    ctx.fill();
+    ctx.fillStyle = "#ffd93d";
+    ctx.beginPath(); ctx.arc(px-3, py-1, 2, 0, 7); ctx.arc(px+3, py-1, 2, 0, 7); ctx.fill();
+  }
+  else if(e.type === "octo"){
+    ctx.fillStyle = flash ? "#ffffff" : "#e8604c";
+    ctx.beginPath(); ctx.ellipse(px, py, 14, 12, 0, 0, 7); ctx.fill();
+    // 触手
+    for(let i=0;i<4;i++){
+      const a = Math.PI*0.15 + i*0.42;
+      const wob = Math.sin(e.t*5 + i)*2;
+      ctx.beginPath();
+      ctx.moveTo(px-11+i*7, py+8);
+      ctx.quadraticCurveTo(px-12+i*7+wob, py+18, px-10+i*7, py+20);
+      ctx.lineWidth = 4; ctx.strokeStyle = flash ? "#fff" : "#e8604c"; ctx.stroke();
+    }
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(px-4.5, py-3, 4.5, 0, 7); ctx.arc(px+4.5, py-3, 4.5, 0, 7); ctx.fill();
+    ctx.fillStyle = "#1c2a1f";
+    ctx.beginPath(); ctx.arc(px-4.5, py-2.5, 2.2, 0, 7); ctx.arc(px+4.5, py-2.5, 2.2, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawBoss(){
+  if(!boss || boss.hp <= 0) return;
+  const px = boss.x*TILE - cam.x, py = boss.y*TILE - cam.y;
+  const flash = boss.hurt > 0;
+  const sq = Math.abs(Math.sin(boss.t*2.6));
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,.3)";
+  ctx.beginPath(); ctx.ellipse(px, py+22, 26, 9, 0, 0, 7); ctx.fill();
+  // 身体
+  const w = 30 + sq*4, h = 34 - sq*5;
+  const grad = ctx.createRadialGradient(px-8, py-8, 4, px, py, w+6);
+  grad.addColorStop(0, flash ? "#ffffff" : "#8b3ca8");
+  grad.addColorStop(1, flash ? "#ffffff" : "#3d1450");
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.ellipse(px, py+26-h/2, w, h, 0, 0, 7); ctx.fill();
+  // 尖角
+  ctx.fillStyle = "#f7cf4a";
+  ctx.beginPath();
+  ctx.moveTo(px-20, py-4); ctx.lineTo(px-27, py-24); ctx.lineTo(px-11, py-10); ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(px+20, py-4); ctx.lineTo(px+27, py-24); ctx.lineTo(px+11, py-10); ctx.closePath(); ctx.fill();
+  // 眼睛
+  ctx.fillStyle = "#ff2d55";
+  ctx.beginPath(); ctx.ellipse(px-10, py+6, 6, 7, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(px+10, py+6, 6, 7, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(px-9, py+3.5, 2, 0, 7); ctx.arc(px+11, py+3.5, 2, 0, 7); ctx.fill();
+  // 血条
+  const bwx = 300, bx = VW/2 - bwx/2, by = 16;
+  ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(bx-3, by-3, bwx+6, 20);
+  ctx.fillStyle = "#40122e"; ctx.fillRect(bx, by, bwx, 14);
+  ctx.fillStyle = "#ff3b6b"; ctx.fillRect(bx, by, bwx * (boss.hp/boss.maxHp), 14);
+  ctx.strokeStyle = "#f7cf4a"; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bwx, 14);
+  ctx.fillStyle = "#f7cf4a"; ctx.font = "bold 13px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("加侬 · 黑暗大王", VW/2, by+34);
+  ctx.restore();
+}
+
+function drawNpc(){
+  const px = 16.5*TILE - cam.x, py = 9.5*TILE - cam.y;
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,.22)";
+  ctx.beginPath(); ctx.ellipse(px, py+14, 11, 4.5, 0, 0, 7); ctx.fill();
+  const bob = Math.sin(tGlobal*2)*1.5;
+  ctx.fillStyle = "#6b4fa0"; ctx.fillRect(px-8, py-4+bob, 16, 16);   // 长袍
+  ctx.fillStyle = "#ffd9a0"; ctx.beginPath(); ctx.arc(px, py-11+bob, 8, 0, 7); ctx.fill();
+  ctx.fillStyle = "#f2f2f2";                                          // 白胡子
+  ctx.beginPath(); ctx.ellipse(px, py-6+bob, 7, 6, 0, 0, Math.PI); ctx.fill();
+  ctx.fillStyle = "#dcdcdc";
+  ctx.beginPath(); ctx.arc(px, py-15+bob, 8.5, Math.PI, 0); ctx.fill();
+  ctx.fillStyle = "#2b2118";
+  ctx.beginPath(); ctx.arc(px-2.6, py-12+bob, 1.5, 0, 7); ctx.arc(px+2.6, py-12+bob, 1.5, 0, 7); ctx.fill();
+  // 说话气泡
+  if(player.hp > 0 && Math.hypot(16.5-player.x, 9.5-player.y) < 3 && state === S.PLAY){
+    ctx.fillStyle = "rgba(255,255,255,.92)";
+    ctx.beginPath(); ctx.arc(px, py-34, 9, 0, 7); ctx.fill();
+    ctx.fillStyle = "#6b4fa0"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("…", px, py-30);
+  }
+  ctx.restore();
+}
+
+function draw(){
+  // 相机
+  cam.x = Math.max(0, Math.min(mapW*TILE - VW, player.x*TILE - VW/2));
+  cam.y = Math.max(0, Math.min(mapH*TILE - VH, player.y*TILE - VH/2));
+  if(mapW*TILE < VW) cam.x = -(VW - mapW*TILE)/2;
+  if(mapH*TILE < VH) cam.y = -(VH - mapH*TILE)/2;
+
+  ctx.save();
+  if(shake > 0) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+
+  ctx.fillStyle = "#1a2b20";
+  ctx.fillRect(-20, -20, VW+40, VH+40);
+
+  // 地图
+  const x0 = Math.max(0, Math.floor(cam.x/TILE)), x1 = Math.min(mapW-1, Math.ceil((cam.x+VW)/TILE));
+  const y0 = Math.max(0, Math.floor(cam.y/TILE)), y1 = Math.min(mapH-1, Math.ceil((cam.y+VH)/TILE));
+  for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){
+    drawTile(map[y][x], x*TILE - cam.x, y*TILE - cam.y, x, y);
+  }
+
+  if(!inDungeon){
+    drawHouse();
+    drawCave();
+    drawNpc();
+  }
+
+  // 碎片
+  for(const s of shards) if(!s.taken) drawShard(s);
+
+  // 掉落
+  for(const d of drops){
+    const px = d.x*TILE - cam.x, py = d.y*TILE - cam.y + Math.sin(tGlobal*4 + d.bob)*3;
+    if(d.life < 3 && Math.floor(tGlobal*8)%2===0) continue;
+    drawHeartShape(px, py, 1);
+  }
+
+  // 子弹
+  for(const b of bullets){
+    const px = b.x*TILE - cam.x, py = b.y*TILE - cam.y;
+    ctx.fillStyle = "#8b8f96";
+    ctx.beginPath(); ctx.arc(px, py, 6, 0, 7); ctx.fill();
+    ctx.fillStyle = "#c9ccd2";
+    ctx.beginPath(); ctx.arc(px-1.5, py-1.5, 2.4, 0, 7); ctx.fill();
+  }
+
+  drawEnemies();
+  drawBoss();
+  drawPlayer();
+
+  // 收集提示
+  if(!inDungeon && collected < 3){
+    // 最近的碎片方向箭头（在孩子找不到时帮一把）
+    let near = null, nd = 1e9;
+    for(const s of shards) if(!s.taken){
+      const d2 = Math.hypot(s.x-player.x, s.y-player.y);
+      if(d2 < nd){ nd = d2; near = s; }
+    }
+    if(near && nd > 6){
+      const a = Math.atan2(near.y-player.y, near.x-player.x);
+      const rx = VW/2 + Math.cos(a)*((VW/2)-46);
+      const ry = VH/2 + Math.sin(a)*((VH/2)-46);
+      ctx.save();
+      ctx.translate(rx, ry); ctx.rotate(a);
+      ctx.fillStyle = "rgba(247,207,74,.85)";
+      ctx.beginPath(); ctx.moveTo(12,0); ctx.lineTo(-8,-8); ctx.lineTo(-8,8); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawEnemies(){ for(const e of enemies) drawEnemy(e); }
+
+/* ---------------- 主循环 ---------------- */
+function loop(t){
+  if(!lastT) lastT = t;
+  let dt = (t - lastT)/1000;
+  lastT = t;
+  if(dt > 0.05) dt = 0.05;      // 防切标签页瞬移
+  if(dt < 0) dt = 0;
+
+  if(state === S.PLAY || state === S.DIALOG){
+    tGlobal += dt;
+    if(state === S.PLAY) update(dt);
+    else {
+      player.cd = Math.max(0, player.cd - dt);
+      player.invuln = Math.max(0, player.invuln - dt);
+    }
+  }else{
+    tGlobal += dt;
+  }
+
+  draw();
+  requestAnimationFrame(loop);
+}
+
+/* ---------------- 胜利 ---------------- */
+function winGame(){
+  state = S.WIN;
+  clearSave();
+  sndWin();
+  showOverlay(
+    '<div class="title">🏆 加侬被打败啦！</div>' +
+    '<div class="sub">⭐⭐⭐<br>你集齐了三角力量，救回了海拉鲁！<br>你是一位真正的<b>海拉鲁小勇士</b>。</div>' +
+    '<button class="btn" id="btnRestart">再玩一次</button>'
+  );
+  const b = document.getElementById("btnRestart");
+  if(b) b.onclick = ()=>restartAll();
+}
+function restartAll(){
+  clearSave();
+  setupOverworld(null);
+  player.hp = player.maxHp;
+  hideOverlay();
+  state = S.PLAY;
+  lastT = performance.now();
+  say(INTRO.map(x=>x));
+}
+
+/* ---------------- 按钮 ---------------- */
+document.getElementById("btnStart").onclick = ()=>startGame();
+
+/* 有存档时：按钮改为「继续冒险」，并额外给一个「重新开始」 */
+(function initStartScreen(){
+  const sv = loadSave();
+  if(!sv) return;
+  const n = sv.taken.filter(Boolean).length;
+  const bs = document.getElementById("btnStart");
+  if(bs) bs.textContent = "继续冒险 🔺" + n + "/3";
+  const ghost = document.createElement("button");
+  ghost.className = "btn ghost";
+  ghost.textContent = "重新开始";
+  ghost.onclick = ()=>{ clearSave(); startGame(); };
+  el.overlay.appendChild(ghost);
+})();
+
+/* ---------------- 启动（注意：不调用 startGame，保留开始浮层） ---------------- */
+setupOverworld(null);
+updateHUD();
+draw();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
