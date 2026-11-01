@@ -76,6 +76,14 @@
     right:22px;bottom:44px;width:84px;height:84px;font-size:26px;font-weight:bold;
     background:rgba(247,207,74,.3);border-color:rgba(247,207,74,.75);
   }
+  #pBow{
+    right:118px;bottom:66px;width:70px;height:70px;font-size:24px;
+    background:rgba(126,200,255,.26);border-color:rgba(126,200,255,.7);
+  }
+  #pBow.off{opacity:.32;}
+  #bow{color:#ffd93d;}
+  #bow.off{opacity:.3;}
+  #bow.deny{color:#ff6b6b;opacity:1;}
   #tip{color:#7fa08f;font-size:14px;margin-top:8px;text-align:center;line-height:1.6;}
   @media (max-width:820px){ h1{font-size:21px;} #hud{font-size:17px;} }
 </style>
@@ -84,6 +92,7 @@
 <h1>⚔️ 海拉鲁小勇士 ⚔️</h1>
 <div id="hud">
   <span id="hearts">❤️❤️❤️</span>
+  <span id="bow" class="off">🏹 ×0</span>
   <span id="shards">🔺 0/3</span>
   <span id="zone">海拉鲁平原</span>
 </div>
@@ -95,6 +104,7 @@
     <div class="pad" id="pDown" data-k="down">▼</div>
     <div class="pad" id="pLeft" data-k="left">◀</div>
     <div class="pad" id="pRight"data-k="right">▶</div>
+    <div class="pad" id="pBow">🏹</div>
     <div class="pad" id="pAtk">⚔️</div>
   </div>
 
@@ -107,7 +117,7 @@
   <div id="overlay">
     <div class="title">⚔️ 海拉鲁小勇士</div>
     <div class="sub">加侬把三角力量打碎啦！<br>找齐 <b>3 块碎片 🔺</b>，再去北边洞窟打败他。</div>
-    <div class="keys">方向键 / WASD 走路 · <b>空格 / J</b> 挥剑</div>
+    <div class="keys">方向键 / WASD 走路 · <b>空格 / J</b> 挥剑 · <b>K</b> 射箭</div>
     <button class="btn" id="btnStart">开始冒险</button>
   </div>
 </div>
@@ -126,6 +136,7 @@ const TILE = 40;
 
 const el = {
   hearts: document.getElementById("hearts"),
+  bow:    document.getElementById("bow"),
   shards: document.getElementById("shards"),
   zone:   document.getElementById("zone"),
   overlay:document.getElementById("overlay"),
@@ -173,6 +184,8 @@ const sndOpen  = () => { [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f
 const sndWin   = () => { [523,659,784,1047,1319,1568].forEach((f,i)=>setTimeout(()=>beep(f,0.26,"triangle",0.11),i*140)); };
 const sndDead  = () => { [440,330,247,165].forEach((f,i)=>setTimeout(()=>beep(f,0.26,"sawtooth",0.11),i*170)); };
 const sndBoss  = () => { beep(110,0.55,"sawtooth",0.13,60); };
+const sndBow   = () => { beep(1200,0.08,"triangle",0.06,620); };
+const sndChest = () => { [659,880,1175].forEach((f,i)=>setTimeout(()=>beep(f,0.16,"sine",0.10),i*100)); };
 
 /* ---------------- 游戏状态 ---------------- */
 const S = { START:"start", PLAY:"play", DIALOG:"dialog", DEAD:"dead", WIN:"win" };
@@ -186,12 +199,15 @@ const player = {
   x: 17.5, y: 21.5,          // 格子坐标（浮点）
   dir: "down", hp: 3, maxHp: 3,
   invuln: 0, swing: 0, cd: 0, hitSet: null,
-  moving: false, animT: 0
+  moving: false, animT: 0,
+  hasBow: false, arrows: 0, bowCd: 0
 };
 
 let shards = [];             // {x,y,taken,id}
 let enemies = [];
-let drops = [];              // 红心 {x,y,life}
+let drops = [];              // {x,y,life,type:"heart"|"arrow"}
+let arrows = [];             // 玩家射出的箭 {x,y,vx,vy,life}
+let chest = null;            // 宝箱 {x,y,opened}
 let bullets = [];            // 章鱼/虫子吐的东西
 let boss = null;
 let collected = 0;
@@ -342,16 +358,17 @@ function setupOverworld(keepShards){
 
   enemies.forEach(e=>{ if(e.type==="slide") e.type="bat"; });
 
-  drops = []; bullets = []; boss = null;
+  drops = []; bullets = []; arrows = []; boss = null;
+  chest = { x: 17.5, y: 18.5, opened: !!player.hasBow };
   player.x = 17.5; player.y = 21.5; player.dir = "down";
-  player.invuln = 0; player.swing = 0; player.cd = 0;
+  player.invuln = 0; player.swing = 0; player.cd = 0; player.bowCd = 0;
   updateHUD();
 }
 
 function setupDungeon(){
   map = buildDungeon(); mapW = DUN_W; mapH = DUN_H;
   inDungeon = true;
-  enemies = []; drops = []; bullets = [];
+  enemies = []; drops = []; bullets = []; arrows = [];
   player.x = 13; player.y = 15; player.dir = "up";
   player.hp = player.maxHp; player.invuln = 1.2;
   boss = { x:13, y:3, hp:10, maxHp:10, t:0, hurt:0, spitCd:2, phase:1, r:0.85 };
@@ -459,10 +476,7 @@ function applySword(dt){
       const kl = Math.hypot(kx,ky) || 1;
       if(e.type !== "octo"){ e.x += kx/kl*0.25; e.y += ky/kl*0.25; }
       shake = Math.max(shake, 4);
-      if(e.hp <= 0){
-        e.dead = true; sndSlay();
-        if(Math.random() < 0.42) drops.push({ x:e.x, y:e.y, life:14, bob:Math.random()*6 });
-      }
+      if(e.hp <= 0) killEnemy(e);
     }
   }
   if(boss && boss.hp > 0 && !player.hitSet.has(boss)){
@@ -476,6 +490,64 @@ function applySword(dt){
       if(boss.hp <= 0) { sndWin(); setTimeout(()=>winGame(), 500); }
     }
   }
+  enemies = enemies.filter(e=>!e.dead);
+}
+
+/* ---------------- 弓与箭 ---------------- */
+function killEnemy(e){
+  e.dead = true; sndSlay();
+  if(Math.random() < 0.42) drops.push({ x:e.x, y:e.y, life:14, bob:Math.random()*6, type:"heart" });
+  if(Math.random() < 0.55) drops.push({ x:e.x+0.22, y:e.y+0.12, life:16, bob:Math.random()*6, type:"arrow" });
+}
+
+function bowDeny(){
+  el.bow.classList.add("deny");
+  setTimeout(()=>el.bow.classList.remove("deny"), 500);
+}
+
+function shootBow(){
+  if(state !== S.PLAY) return;
+  if(!player.hasBow || player.arrows <= 0){ bowDeny(); return; }
+  if(player.bowCd > 0) return;
+  player.bowCd = 0.42;
+  player.arrows -= 1;
+  const [dx,dy] = DIRV[player.dir];
+  arrows.push({
+    x: player.x + dx*0.45, y: player.y + dy*0.45,
+    vx: dx*12.5, vy: dy*12.5, life: 1.25, rot: Math.atan2(dy,dx)
+  });
+  sndBow(); updateHUD();
+}
+
+function updateArrows(dt){
+  for(const a of arrows){
+    a.x += a.vx*dt; a.y += a.vy*dt; a.life -= dt;
+    if(a.life <= 0) continue;
+    if(solidAt(a.x, a.y)){ a.life = 0; continue; }
+
+    for(const e of enemies){
+      if(e.dead) continue;
+      if(Math.hypot(e.x-a.x, e.y-a.y) < e.r + 0.26){
+        a.life = 0;
+        e.hp -= 1; e.hurt = 0.16;
+        sndHit(); shake = Math.max(shake, 4);
+        const kx = e.x-a.x, ky = e.y-a.y, kl = Math.hypot(kx,ky)||1;
+        if(e.type !== "octo"){ e.x += kx/kl*0.22; e.y += ky/kl*0.22; }
+        if(e.hp <= 0) killEnemy(e);
+        break;
+      }
+    }
+    if(a.life <= 0) continue;
+
+    if(boss && boss.hp > 0 && Math.hypot(boss.x-a.x, boss.y-a.y) < boss.r + 0.3){
+      a.life = 0;
+      boss.hp -= 1; boss.hurt = 0.18;
+      sndHit(); shake = Math.max(shake, 6);
+      boss.phase = boss.hp > 6 ? 1 : boss.hp > 3 ? 2 : 3;
+      if(boss.hp <= 0){ sndWin(); setTimeout(()=>winGame(), 500); }
+    }
+  }
+  arrows = arrows.filter(a=>a.life > 0);
   enemies = enemies.filter(e=>!e.dead);
 }
 
@@ -515,10 +587,11 @@ const INTRO = [
   ["老者","林克……你终于醒啦！加侬把三角力量打碎了，三块碎片散落在海拉鲁。"],
   ["老者","这把剑给你！按 空格 或 J 挥剑，把挡路的怪物打跑。"],
   ["老者","三块碎片分别在：西南的森林 🌲、东北的湖边 🌊、东南的石山 🪨。"],
-  ["老者","集齐三块，北边的洞窟石门就会打开。去吧，小勇士！"]
+  ["老者","集齐三块，北边的洞窟石门就会打开。去吧，小勇士！"],
+  ["老者","对了！往北走两步有个【宝箱】，里面有弓——捡到后按 K 射箭（平板点 🏹）。"]
 ];
 const HINTS = [
-  ["老者","宝箱里没有东西啦，去把三块三角力量找齐。"],
+  ["老者","弓已经在你手上啦，按 K 射箭（平板点 🏹）。去把三块三角力量找齐。"],
   ["老者","西南的森林里，史莱姆一跳一跳的——站在它侧面挥剑最快。"],
   ["老者","东北湖边的蝙蝠会飞，别躲，直接冲上去砍它。"],
   ["老者","东南石山的章鱼会吐石头，走 Z 字就能躲开。"],
@@ -561,20 +634,25 @@ function updateHUD(){
   el.hearts.textContent = h;
   el.shards.textContent = "🔺 " + collected + "/3";
   el.zone.textContent = inDungeon ? "加侬的洞窟" : "海拉鲁平原";
+  el.bow.textContent = "🏹 ×" + player.arrows;
+  el.bow.classList.toggle("off", !player.hasBow || player.arrows <= 0);
+  const pad = document.getElementById("pBow");
+  if(pad) pad.classList.toggle("off", !player.hasBow || player.arrows <= 0);
 }
 
 /* ---------------- 存档 ---------------- */
 function save(){
   try{
     localStorage.setItem(SAVE_KEY, JSON.stringify({
-      taken: shards.map(s=>s.taken), cleared: false, ts: Date.now()
+      taken: shards.map(s=>s.taken), cleared: false,
+      hasBow: !!player.hasBow, arrows: player.arrows, ts: Date.now()
     }));
   }catch(e){}
 }
 function loadSave(){
   try{
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
-    if(s && s.taken && s.taken.filter(Boolean).length > 0 && !s.cleared) return s;
+    if(s && !s.cleared && ((s.taken && s.taken.filter(Boolean).length > 0) || s.hasBow)) return s;
   }catch(e){}
   return null;
 }
@@ -583,6 +661,9 @@ function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
 /* ---------------- 开始 ---------------- */
 function startGame(){
   const s = loadSave();
+  player.hasBow = !!(s && s.hasBow);
+  player.arrows = s ? (s.arrows || 0) : 0;
+  player.bowCd = 0;
   setupOverworld(s ? s.taken : null);
   player.hp = player.maxHp;
   hideOverlay();
@@ -607,6 +688,7 @@ function keyName(e){
   if(k === "arrowright" || k === "d") return "right";
   if(k === " ") return "space";
   if(k === "j" || k === "enter") return "atk";
+  if(k === "k" || k === "l") return "bow";
   return null;
 }
 document.addEventListener("keydown", e=>{
@@ -619,6 +701,7 @@ document.addEventListener("keydown", e=>{
   if(state === S.DEAD && (k === "space" || k === "atk")){ respawn(); return; }
   if(state === S.WIN && (k === "space" || k === "atk")){ restartAll(); return; }
   if(state === S.PLAY && k === "atk") attack();
+  if(state === S.PLAY && k === "bow") shootBow();
 });
 document.addEventListener("keyup", e=>{
   const k = keyName(e);
@@ -644,6 +727,10 @@ document.querySelectorAll("#touch .pad[data-k]").forEach(p=>{
 });
 document.getElementById("pAtk").addEventListener("touchstart", e=>{ e.preventDefault(); if(state===S.DIALOG) nextDlg(); else attack(); }, {passive:false});
 document.getElementById("pAtk").addEventListener("mousedown", e=>{ e.preventDefault(); if(state===S.DIALOG) nextDlg(); else attack(); });
+const pBowEl = document.getElementById("pBow");
+const bowTap = e=>{ e.preventDefault(); if(state===S.DIALOG) nextDlg(); else shootBow(); };
+pBowEl.addEventListener("touchstart", bowTap, {passive:false});
+pBowEl.addEventListener("mousedown", bowTap);
 
 /* ---------------- 主循环 ---------------- */
 function update(dt){
@@ -675,6 +762,8 @@ function update(dt){
 
   updateEnemies(dt);
   if(inDungeon) updateBoss(dt);
+  updateArrows(dt);
+  player.bowCd = Math.max(0, player.bowCd - dt);
 
   // 子弹
   for(const b of bullets){
@@ -694,13 +783,18 @@ function update(dt){
   }
   if(boss && boss.hp > 0 && Math.hypot(boss.x-player.x, boss.y-player.y) < boss.r + 0.42) hurtPlayer();
 
-  // 掉落红心
+  // 掉落：红心 / 箭
   for(const d of drops){
     d.life -= dt;
     if(d.life > 0 && Math.hypot(d.x-player.x, d.y-player.y) < 0.8){
       d.life = 0;
-      if(player.hp < player.maxHp){ player.hp++; updateHUD(); sndPick(); }
-      else sndPick();
+      if(d.type === "arrow"){
+        player.arrows += (player.hasBow ? 3 : 0);
+        sndPick(); updateHUD();
+      }else{
+        if(player.hp < player.maxHp){ player.hp++; updateHUD(); sndPick(); }
+        else sndPick();
+      }
     }
   }
   drops = drops.filter(d=>d.life > 0);
@@ -727,6 +821,17 @@ function update(dt){
   caveCool = Math.max(0, caveCool - dt);
   npcCool = Math.max(0, npcCool - dt);
   if(!inDungeon){
+    // 宝箱：拿到弓
+    if(chest && !chest.opened && Math.hypot(chest.x-player.x, chest.y-player.y) < 0.95){
+      chest.opened = true;
+      player.hasBow = true;
+      player.arrows += 10;
+      sndChest(); updateHUD(); save();
+      say([["宝箱","🎉 打开宝箱——里面是一把【弓】和 10 支箭！"],
+           ["老者","按 K 键（平板上点 🏹）朝你面向的方向射箭。"],
+           ["老者","箭射完了也别怕，打怪有几率掉箭，捡起来 +3 支。"]], ()=>{});
+      return;
+    }
     const gx = Math.floor(player.x), gy = Math.floor(player.y);
     if(map[gy] && map[gy][gx] === T.CAVE && caveCool <= 0){
       caveCool = 1.5;
@@ -1137,6 +1242,73 @@ function drawNpc(){
   ctx.restore();
 }
 
+function drawChest(){
+  if(!chest || chest.opened) return;
+  const px = chest.x*TILE - cam.x, py = chest.y*TILE - cam.y;
+  const bob = Math.sin(tGlobal*2.6)*2;
+
+  // 光晕
+  const g = ctx.createRadialGradient(px, py, 4, px, py, 46);
+  g.addColorStop(0, "rgba(247,207,74,.5)");
+  g.addColorStop(1, "rgba(247,207,74,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(px, py, 46, 0, 7); ctx.fill();
+
+  // 影子
+  ctx.fillStyle = "rgba(0,0,0,.22)";
+  ctx.beginPath(); ctx.ellipse(px, py+14, 19, 5, 0, 0, 7); ctx.fill();
+
+  // 箱体
+  ctx.fillStyle = "#8b5a2b"; ctx.fillRect(px-18, py-6+bob, 36, 20);
+  ctx.fillStyle = "#a9702f"; ctx.fillRect(px-18, py-16+bob, 36, 12);
+  ctx.fillStyle = "#6d451f"; ctx.fillRect(px-18, py-7+bob, 36, 3);
+  // 金边 + 锁
+  ctx.fillStyle = "#f7cf4a"; ctx.fillRect(px-3, py-8+bob, 6, 10);
+  ctx.fillStyle = "#ffe89a"; ctx.fillRect(px-1.6, py-5+bob, 3.2, 5);
+  ctx.fillStyle = "#f7cf4a";
+  ctx.fillRect(px-18, py-16+bob, 3, 30);
+  ctx.fillRect(px+15, py-16+bob, 3, 30);
+
+  // 闪耀星
+  const tw = (Math.sin(tGlobal*5)+1)/2;
+  ctx.fillStyle = "rgba(255,255,255," + (0.35+tw*0.6) + ")";
+  ctx.beginPath();
+  ctx.moveTo(px+24, py-26+bob); ctx.lineTo(px+26.5, py-20+bob); ctx.lineTo(px+32, py-18+bob);
+  ctx.lineTo(px+26.5, py-16+bob); ctx.lineTo(px+24, py-10+bob); ctx.lineTo(px+21.5, py-16+bob);
+  ctx.lineTo(px+16, py-18+bob); ctx.lineTo(px+21.5, py-20+bob);
+  ctx.closePath(); ctx.fill();
+}
+
+function drawArrowPickup(px, py){
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(-Math.PI/4);
+  ctx.strokeStyle = "#e8dcc0"; ctx.lineWidth = 3; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(7, 0); ctx.stroke();
+  ctx.fillStyle = "#c8cfd8";
+  ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(3, -5); ctx.lineTo(3, 5); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#8fd0ff"; ctx.fillRect(-10, -4, 4, 8);
+  ctx.restore();
+}
+
+function drawArrowsInFlight(){
+  for(const a of arrows){
+    const px = a.x*TILE - cam.x, py = a.y*TILE - cam.y;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(a.rot);
+    // 拖尾
+    ctx.strokeStyle = "rgba(143,208,255,.45)"; ctx.lineWidth = 4; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(-22, 0); ctx.lineTo(-8, 0); ctx.stroke();
+    ctx.strokeStyle = "#e8dcc0"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(8, 0); ctx.stroke();
+    ctx.fillStyle = "#c8cfd8";
+    ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(4, -5); ctx.lineTo(4, 5); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#8fd0ff"; ctx.fillRect(-11, -4, 4, 8);
+    ctx.restore();
+  }
+}
+
 function draw(){
   // 相机
   cam.x = Math.max(0, Math.min(mapW*TILE - VW, player.x*TILE - VW/2));
@@ -1161,6 +1333,7 @@ function draw(){
     drawHouse();
     drawCave();
     drawNpc();
+    drawChest();
   }
 
   // 碎片
@@ -1170,7 +1343,8 @@ function draw(){
   for(const d of drops){
     const px = d.x*TILE - cam.x, py = d.y*TILE - cam.y + Math.sin(tGlobal*4 + d.bob)*3;
     if(d.life < 3 && Math.floor(tGlobal*8)%2===0) continue;
-    drawHeartShape(px, py, 1);
+    if(d.type === "arrow") drawArrowPickup(px, py);
+    else drawHeartShape(px, py, 1);
   }
 
   // 子弹
@@ -1184,6 +1358,7 @@ function draw(){
 
   drawEnemies();
   drawBoss();
+  drawArrowsInFlight();
   drawPlayer();
 
   // 收集提示
@@ -1249,6 +1424,7 @@ function winGame(){
 }
 function restartAll(){
   clearSave();
+  player.hasBow = false; player.arrows = 0; player.bowCd = 0;
   setupOverworld(null);
   player.hp = player.maxHp;
   hideOverlay();
@@ -1266,7 +1442,7 @@ document.getElementById("btnStart").onclick = ()=>startGame();
   if(!sv) return;
   const n = sv.taken.filter(Boolean).length;
   const bs = document.getElementById("btnStart");
-  if(bs) bs.textContent = "继续冒险 🔺" + n + "/3";
+  if(bs) bs.textContent = n > 0 ? ("继续冒险 🔺" + n + "/3") : "继续冒险 🏹";
   const ghost = document.createElement("button");
   ghost.className = "btn ghost";
   ghost.textContent = "重新开始";
