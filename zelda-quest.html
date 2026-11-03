@@ -197,6 +197,26 @@
     box-shadow:0 6px 16px rgba(0,0,0,.4), 0 0 18px rgba(120,200,255,.3), inset 0 2px 6px rgba(255,255,255,.5);
   }
   #pBow.off{opacity:.32;}
+  #pShield{
+    right:24px;bottom:142px;width:66px;height:66px;font-size:25px;
+    background:radial-gradient(circle at 34% 28%, rgba(205,240,255,.62), rgba(95,175,230,.3) 60%, rgba(95,175,230,.16));
+    border-color:rgba(200,235,255,.85);
+    box-shadow:0 6px 16px rgba(0,0,0,.4), 0 0 18px rgba(120,200,255,.32), inset 0 2px 6px rgba(255,255,255,.55);
+  }
+  #pShield.held{
+    transform:scale(.94);
+    background:radial-gradient(circle at 34% 28%, rgba(255,240,180,.9), rgba(247,207,74,.5) 60%, rgba(247,207,74,.28));
+    border-color:rgba(255,232,154,.95);
+    box-shadow:0 6px 18px rgba(0,0,0,.35), 0 0 26px rgba(247,207,74,.7), inset 0 2px 6px rgba(255,255,255,.7);
+  }
+  #pShield.off{opacity:.32;}
+  #shield{transition:background .12s ease, color .12s ease, box-shadow .12s ease;}
+  #shield.on{
+    color:#20180a;
+    background:linear-gradient(180deg,#ffe89a,#f7cf4a);
+    box-shadow:0 0 16px rgba(247,207,74,.65), inset 0 1px 0 rgba(255,255,255,.7);
+    border-color:rgba(255,232,154,.9);
+  }
 
   #tip{
     color:#7fa08f;font-size:13.5px;margin-top:10px;text-align:center;line-height:1.6;
@@ -221,6 +241,7 @@
   <div id="hud">
     <span id="hearts" class="chip">❤️❤️❤️</span>
     <span id="bow" class="chip off">🏹 ×0</span>
+    <span id="shield" class="chip">🛡️ 盾</span>
     <span id="shards" class="chip">🔺 0/3</span>
     <span id="zone" class="chip">海拉鲁平原</span>
   </div>
@@ -235,6 +256,7 @@
       <div class="pad" id="pRight"data-k="right">▶</div>
       <div class="pad" id="pBow">🏹</div>
       <div class="pad" id="pAtk">⚔️</div>
+      <div class="pad" id="pShield">🛡️</div>
     </div>
 
     <div id="dialog" class="hidden">
@@ -247,13 +269,13 @@
       <div class="oCard">
         <div class="title">⚔️ 海拉鲁小勇士</div>
         <div class="sub">加侬把三角力量打碎啦！<br>找齐 <b>3 块碎片 🔺</b>，再去北边洞窟打败他。</div>
-        <div class="keys">方向键 / WASD 走路 · <b>空格 / J</b> 挥剑 · <b>K</b> 射箭（无限）</div>
+        <div class="keys">方向键 / WASD 走路 · <b>空格 / J</b> 挥剑 · <b>K</b> 射箭（无限）<br><b>按住 Shift</b>（平板按住 🛡️）举盾，挡住正面来的攻击</div>
         <button class="btn" id="btnStart">开始冒险</button>
       </div>
     </div>
   </div>
 
-  <div id="tip">拿到剑就出发 · 红心会从打倒的怪物身上掉出来</div>
+  <div id="tip">空格挥剑 · K 射箭 · 按住 Shift（平板按住 🛡️）举盾：正面挡得住，背面挡不住<br>红心会从打倒的怪物身上掉出来</div>
 </div>
 <script>
 "use strict";
@@ -334,7 +356,8 @@ const player = {
   dir: "down", hp: 3, maxHp: 3,
   invuln: 0, swing: 0, cd: 0, hitSet: null,
   moving: false, animT: 0,
-  hasBow: false, arrows: 0, bowCd: 0, infArrow: false
+  hasBow: false, arrows: 0, bowCd: 0, infArrow: false,
+  hasShield: true, blocking: false, blockFlash: 0
 };
 
 let shards = [];             // {x,y,taken,id}
@@ -588,8 +611,19 @@ function updateBoss(dt){
 
 /* ---------------- 攻击 ---------------- */
 const DIRV = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] };
+function setBlocking(v){
+  v = !!v && player.hasShield && state === S.PLAY;
+  if(player.blocking === v) return;
+  player.blocking = v;
+  const c = document.getElementById("shield");
+  if(c) c.classList.toggle("on", v);
+  const pad = document.getElementById("pShield");
+  if(pad) pad.classList.toggle("held", v);
+}
+
 function attack(){
   if(state !== S.PLAY) return;
+  if(player.blocking) return;
   if(player.cd > 0) return;
   player.cd = 0.34;
   player.swing = 0.22;
@@ -644,6 +678,7 @@ function bowDeny(){
 
 function shootBow(){
   if(state !== S.PLAY) return;
+  if(player.blocking) return;
   if(!player.hasBow || (!player.infArrow && player.arrows <= 0)){ bowDeny(); return; }
   if(player.bowCd > 0) return;
   player.bowCd = 0.42;
@@ -689,8 +724,26 @@ function updateArrows(dt){
 }
 
 /* ---------------- 伤害玩家 ---------------- */
-function hurtPlayer(){
+function hurtPlayer(sx, sy){
   if(player.invuln > 0 || state !== S.PLAY) return;
+
+  // 举盾时，正前方来的攻击被挡下（盾不耗耐久，孩子不用记数值）
+  if(player.blocking && player.hasShield && sx !== undefined && sy !== undefined){
+    const [fx, fy] = DIRV[player.dir];
+    const ax = sx - player.x, ay = sy - player.y;
+    const al = Math.hypot(ax, ay) || 1;
+    if((fx*ax + fy*ay)/al > 0.30){          // 正面约 ±72°
+      player.invuln = 0.34;
+      player.blockFlash = 0.3;
+      shake = Math.max(shake, 5);
+      sndHit();
+      const bx = player.x*TILE + fx*22, byy = player.y*TILE + fy*22;
+      burst(bx, byy, "rgba(215,240,255,.95)", 10, 95);
+      burst(bx, byy, "#ffdc6a", 6, 75);
+      return;                                // 挡住 = 不掉血
+    }
+  }
+
   player.hp -= 1;
   player.invuln = 1.4;
   shake = 10;
@@ -777,6 +830,10 @@ function updateHUD(){
   el.bow.classList.toggle("off", noArrow);
   const pad = document.getElementById("pBow");
   if(pad) pad.classList.toggle("off", noArrow);
+  const sEl = document.getElementById("shield");
+  if(sEl) sEl.classList.toggle("on", !!player.blocking);
+  const sPad = document.getElementById("pShield");
+  if(sPad){ sPad.classList.toggle("held", !!player.blocking); sPad.classList.toggle("off", !player.hasShield); }
 }
 
 /* ---------------- 存档 ---------------- */
@@ -829,6 +886,7 @@ function keyName(e){
   if(k === " ") return "space";
   if(k === "j" || k === "enter") return "atk";
   if(k === "k" || k === "l") return "bow";
+  if(k === "shift") return "shield";
   return null;
 }
 document.addEventListener("keydown", e=>{
@@ -842,11 +900,20 @@ document.addEventListener("keydown", e=>{
   if(state === S.WIN && (k === "space" || k === "atk")){ restartAll(); return; }
   if(state === S.PLAY && (k === "atk" || k === "space")) attack();   // 空格也能挥剑
   if(state === S.PLAY && k === "bow") shootBow();
+  if(k === "shield") setBlocking(true);
 });
 document.addEventListener("keyup", e=>{
   const k = keyName(e);
   if(k) keys[k] = false;
+  if(k === "shield") setBlocking(false);
 });
+// 切走窗口时松掉所有键（不然按住 Shift 切走会一直举着盾）
+const releaseAll = ()=>{
+  for(const k in keys) keys[k] = false;
+  setBlocking(false);
+};
+window.addEventListener("blur", releaseAll);
+document.addEventListener("visibilitychange", ()=>{ if(document.hidden) releaseAll(); });
 cv.addEventListener("pointerdown", ()=>{
   if(state === S.DIALOG) nextDlg();
   else if(state === S.PLAY) attack();
@@ -872,6 +939,19 @@ const bowTap = e=>{ e.preventDefault(); if(state===S.DIALOG) nextDlg(); else sho
 pBowEl.addEventListener("touchstart", bowTap, {passive:false});
 pBowEl.addEventListener("mousedown", bowTap);
 
+// 盾牌：按住举盾（松手放盾）
+const pShEl = document.getElementById("pShield");
+if(pShEl){
+  const shOn = e=>{ e.preventDefault(); if(state===S.DIALOG){ nextDlg(); return; } setBlocking(true); };
+  const shOff = e=>{ if(e && e.preventDefault) e.preventDefault(); setBlocking(false); };
+  pShEl.addEventListener("touchstart", shOn, {passive:false});
+  pShEl.addEventListener("touchend", shOff);
+  pShEl.addEventListener("touchcancel", shOff);
+  pShEl.addEventListener("mousedown", shOn);
+  pShEl.addEventListener("mouseup", shOff);
+  pShEl.addEventListener("mouseleave", shOff);
+}
+
 /* ---------------- 主循环 ---------------- */
 function update(dt){
   tGlobal += dt;
@@ -896,7 +976,8 @@ function update(dt){
   if(dx || dy){
     if(Math.abs(dx) > Math.abs(dy)) player.dir = dx > 0 ? "right" : "left";
     else player.dir = dy > 0 ? "down" : "up";
-    moveEnt(player, dx*4.4*dt, dy*4.4*dt, 0.30);
+    const spd = player.blocking ? 2.3 : 4.4;
+    moveEnt(player, dx*spd*dt, dy*spd*dt, 0.30);
     player.animT += dt;
   }
 
@@ -904,11 +985,13 @@ function update(dt){
   if(inDungeon) updateBoss(dt);
   updateArrows(dt);
   player.bowCd = Math.max(0, player.bowCd - dt);
+  player.blockFlash = Math.max(0, player.blockFlash - dt);
+  if(state !== S.PLAY) setBlocking(false);
 
   // 子弹
   for(const b of bullets){
     b.x += b.vx*dt; b.y += b.vy*dt; b.life -= dt;
-    if(Math.hypot(b.x-player.x, b.y-player.y) < 0.55) { b.life = 0; hurtPlayer(); }
+    if(Math.hypot(b.x-player.x, b.y-player.y) < 0.55) { b.life = 0; hurtPlayer(b.x, b.y); }
     if(solidAt(b.x,b.y)) b.life = 0;
   }
   bullets = bullets.filter(b=>b.life > 0);
@@ -916,12 +999,12 @@ function update(dt){
   // 怪物撞玩家
   for(const e of enemies){
     if(Math.hypot(e.x-player.x, e.y-player.y) < e.r + 0.42){
-      hurtPlayer();
+      hurtPlayer(e.x, e.y);
       const kx = player.x-e.x, ky = player.y-e.y, kl = Math.hypot(kx,ky)||1;
       moveEnt(player, kx/kl*0.35, ky/kl*0.35, 0.30);
     }
   }
-  if(boss && boss.hp > 0 && Math.hypot(boss.x-player.x, boss.y-player.y) < boss.r + 0.42) hurtPlayer();
+  if(boss && boss.hp > 0 && Math.hypot(boss.x-player.x, boss.y-player.y) < boss.r + 0.42) hurtPlayer(boss.x, boss.y);
 
   // 掉落：红心 / 箭
   for(const d of drops){
@@ -1581,7 +1664,7 @@ function drawPlayer(){
   ctx.beginPath(); ctx.arc(px + 9.2, by + 6, 2.3, 0, 7); ctx.fill();
 
   // 盾（背面，朝上时看得见）
-  if(face === "up"){
+  if(face === "up" && !player.blocking){
     // 斜挎在背上的小盾，留出肩背的绿衣
     ctx.save();
     ctx.translate(px + 1.5, by + 1);
@@ -1679,6 +1762,54 @@ function drawPlayer(){
     ctx.rotate(-.5);
     ctx.fillStyle = "#dfeaf7"; ctx.fillRect(-1.6, -13, 3.2, 14);
     ctx.fillStyle = "#c9a468"; ctx.fillRect(-4, 1, 8, 2.6);
+    ctx.restore();
+  }
+
+  // 举盾（挡在身前的正面防御）
+  if(player.blocking && player.hasShield){
+    const [fx, fy] = DIRV[face];
+    let bx = px + fx*15, byy = by + 1 + fy*10;
+    if(face === "up")   { bx = px; byy = by - 18; }
+    if(face === "down") { bx = px; byy = by + 5; }
+    ctx.save();
+    ctx.translate(bx, byy);
+    if(face === "left")  ctx.rotate(-0.24);
+    if(face === "right") ctx.rotate(0.24);
+
+    // 光晕（挡下攻击的瞬间更亮）
+    const glow = 0.26 + (player.blockFlash > 0 ? 0.7 * (player.blockFlash/0.3) : 0);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const gg = ctx.createRadialGradient(0, 0, 2, 0, 0, 21);
+    gg.addColorStop(0, "rgba(190,230,255," + glow.toFixed(3) + ")");
+    gg.addColorStop(1, "rgba(120,200,255,0)");
+    ctx.fillStyle = gg;
+    ctx.beginPath(); ctx.arc(0, 0, 21, 0, 7); ctx.fill();
+    ctx.restore();
+
+    // 盾面（上宽下尖）
+    const sg = ctx.createLinearGradient(-8, -10, 8, 11);
+    sg.addColorStop(0, "#a6d5f8"); sg.addColorStop(.45, "#5f9ad2"); sg.addColorStop(1, "#2c5c8f");
+    ctx.fillStyle = sg;
+    ctx.beginPath();
+    ctx.moveTo(-8.5, -10);
+    ctx.lineTo(8.5, -10);
+    ctx.quadraticCurveTo(9.6, 1, 0, 11.6);
+    ctx.quadraticCurveTo(-9.6, 1, -8.5, -10);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#e8f3fd"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = "rgba(38,68,110,.45)"; ctx.lineWidth = .8; ctx.stroke();
+    // 高光
+    ctx.fillStyle = "rgba(255,255,255,.3)";
+    rr(ctx, -6.4, -8.4, 12.8, 3.6, 2); ctx.fill();
+    // 三角力量纹章
+    ctx.fillStyle = "#f7cf4a";
+    ctx.beginPath(); ctx.moveTo(0, -3.4); ctx.lineTo(4.4, 3.4); ctx.lineTo(-4.4, 3.4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.55)";
+    ctx.beginPath(); ctx.moveTo(0, -3.4); ctx.lineTo(1.5, .3); ctx.lineTo(-1.5, .3); ctx.closePath(); ctx.fill();
+    // 底部铆钉
+    ctx.fillStyle = "#c9a468";
+    ctx.beginPath(); ctx.arc(0, 7, 1.7, 0, 7); ctx.fill();
     ctx.restore();
   }
 
